@@ -11,7 +11,7 @@ const stops = ["Results", "Consult", "First dose", "Day 12", "Missed dose", "Qui
 export default function OpengraphImage() {
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#f7f6f4", color: INK, padding: "96px 72px 64px" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", background: "#f7f6f4", color: INK, padding: "0 72px" }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", alignItems: "center", fontSize: 86, lineHeight: 1.1, letterSpacing: -2, whiteSpace: "nowrap" }}>
             <span style={{ whiteSpace: "nowrap" }}>The days</span>
@@ -22,7 +22,7 @@ export default function OpengraphImage() {
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", flexDirection: "column", marginTop: 84 }}>
           <div style={{ display: "flex", alignItems: "center" }}>
             {stops.map((s, i) => (
               <div key={s} style={{ display: "flex", alignItems: "center", flex: i === stops.length - 1 ? "none" : 1 }}>
