@@ -1,7 +1,7 @@
-import { hasCredentials, MODEL } from "@/lib/claude";
+import { hasCredentials } from "@/lib/claude";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
-  return Response.json({ live: hasCredentials(), model: MODEL });
+  return Response.json({ live: hasCredentials() });
 }

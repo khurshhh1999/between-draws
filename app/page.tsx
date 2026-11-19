@@ -54,7 +54,17 @@ function adherence(day: number): StatusDay[] {
   });
 }
 
-const TONE = { routine: "border-[var(--mint-line)] text-[var(--mint)]", same_day: "border-[var(--amber-line)] text-[var(--amber)]", emergency: "border-[var(--red-line)] text-[var(--red)]" } as const;
+const TONE = { routine: "bg-white text-[var(--ok)]", same_day: "bg-white text-[var(--amber)]", emergency: "bg-[var(--coral)] text-white" } as const;
+
+// Where a value sits in its reference range, drawn as a nine-dot gauge.
+function gauge(m: Marker, value: number): string {
+  const nums = m.range.match(/[\d.]+/g)?.map(Number) ?? [];
+  const [lo, hi] = m.range.startsWith("under") ? [0, nums[0]] : [nums[0], nums[1]];
+  const slot = Math.round(((value - lo) / (hi - lo)) * 8);
+  if (slot < 0) return "●[·········]";
+  if (slot > 8 || (m.range.startsWith("under") && value >= hi)) return "[·········]●";
+  return `[${"·".repeat(slot)}●${"·".repeat(8 - slot)}]`;
+}
 
 function outOfRange(m: Marker, value: number): boolean {
   const nums = m.range.match(/[\d.]+/g)?.map(Number) ?? [];
@@ -64,7 +74,6 @@ function outOfRange(m: Marker, value: number): boolean {
 
 export default function Page() {
   const [live, setLive] = useState<boolean | null>(null);
-  const [model, setModel] = useState("");
   const [idx, setIdx] = useState(0);
   const [rulesOn, setRulesOn] = useState<Record<string, boolean>>(() => Object.fromEntries(ALL_RULE_IDS.map((id) => [id, true])));
   const [learned, setLearned] = useState<Memory[]>([]);
@@ -97,10 +106,7 @@ export default function Page() {
   useEffect(() => {
     fetch("/api/status")
       .then((r) => r.json())
-      .then((s: { live: boolean; model: string }) => {
-        setLive(s.live);
-        setModel(s.model);
-      })
+      .then((s: { live: boolean }) => setLive(s.live))
       .catch(() => setLive(false));
   }, []);
 
@@ -203,18 +209,15 @@ export default function Page() {
 
   return (
     <main className="wrap">
-      <header className="top">
-        <div>
-          <h1>Between Draws</h1>
-          <p className="lede">
-            Hone sees a patient&rsquo;s blood every 90 days. This is a working prototype of what the AI does on the other 89, and of the
-            contract that keeps it safe to ship.
-          </p>
-        </div>
-        <Badge variant="outline" className="gap-2 rounded-md px-2.5 py-1.5 font-mono font-normal text-[var(--soft)]">
-          <span className={`size-1.5 rounded-full ${live ? "bg-[var(--mint)]" : live === false ? "bg-[var(--red)]" : "bg-[var(--muted)]"}`} />
-          {live === null ? "Checking" : live ? `Live · ${model}` : "No model connected"}
-        </Badge>
+      <header>
+        <p className="eyebrow">Concept · AI Experience</p>
+        <h1>
+          The 89 days <mark>between draws</mark>
+        </h1>
+        <p className="lede">
+          Baseline, Blueprint, Build, Become. Labs happen every 90 days; this is a working prototype of what the AI does for a patient on
+          the days in between, and of the contract that keeps it safe to ship.
+        </p>
       </header>
 
       {live === false && (
@@ -245,12 +248,14 @@ export default function Page() {
           <div className="phone-head">
             <div>
               <strong>{PATIENT.first}</strong>
-              <span className="muted"> · day {moment.day}</span>
+              <span className="where">
+                {moment.stage} · day {moment.day}/90{moment.day < 90 ? ` · retest in ${90 - moment.day}d` : ""}
+              </span>
             </div>
             <Tabs value={view} onValueChange={(v) => setView(v as "chat" | "memory")}>
-              <TabsList className="h-8">
-                <TabsTrigger value="chat">Today</TabsTrigger>
-                <TabsTrigger value="memory">Memory {memory.length}</TabsTrigger>
+              <TabsList className="h-8 rounded-full">
+                <TabsTrigger value="chat" className="rounded-full px-3">Today</TabsTrigger>
+                <TabsTrigger value="memory" className="rounded-full px-3">Memory {memory.length}</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -265,6 +270,7 @@ export default function Page() {
                   <b>
                     {retested && <s>{m.baseline}</s>} {value}
                   </b>
+                  <span className="gauge">{gauge(m, value)}</span>
                 </div>
               );
             })}
@@ -281,7 +287,7 @@ export default function Page() {
                       <p>{m.fact}</p>
                       <span className="muted small">{m.source}</span>
                     </div>
-                    <Button variant="ghost" size="sm" className="text-[var(--muted)] hover:text-[var(--red)]" onClick={() => setDeleted((d) => [...d, m.id])}>
+                    <Button variant="ghost" size="sm" className="rounded-full text-[var(--muted)] hover:text-[var(--coral)]" onClick={() => setDeleted((d) => [...d, m.id])}>
                       Forget
                     </Button>
                   </div>
@@ -327,7 +333,7 @@ export default function Page() {
             <div className="composer">
               <div className="chips">
                 {moment.suggestions.map((s) => (
-                  <Button key={s} variant="outline" size="sm" className="font-normal" disabled={busy || !live} onClick={() => send(s)}>
+                  <Button key={s} variant="outline" size="sm" className="rounded-full font-normal" disabled={busy || !live} onClick={() => send(s)}>
                     {s}
                   </Button>
                 ))}
@@ -338,8 +344,8 @@ export default function Page() {
                   send(draft);
                 }}
               >
-                <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Message as ${PATIENT.first}`} maxLength={600} aria-label="Message" />
-                <Button type="submit" disabled={busy || !live || !draft.trim()}>
+                <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Message as ${PATIENT.first}`} maxLength={600} aria-label="Message" className="h-10 rounded-full px-4" />
+                <Button type="submit" className="h-10 rounded-full border border-[var(--ink)]" disabled={busy || !live || !draft.trim()}>
                   Send
                 </Button>
               </form>
@@ -349,10 +355,10 @@ export default function Page() {
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="panel gap-0">
           <div className="panel-head">
-            <TabsList>
-              <TabsTrigger value="hood">Under the hood</TabsTrigger>
-              <TabsTrigger value="contract">Behavior contract{offRules.length ? ` · ${offRules.length} off` : ""}</TabsTrigger>
-              <TabsTrigger value="redteam">Red team{doneCount ? ` · ${passCount}/${CASES.length}` : ""}</TabsTrigger>
+            <TabsList className="h-10 rounded-full">
+              <TabsTrigger value="hood" className="rounded-full px-4">Under the hood</TabsTrigger>
+              <TabsTrigger value="contract" className="rounded-full px-4">Behavior contract{offRules.length ? ` · ${offRules.length} off` : ""}</TabsTrigger>
+              <TabsTrigger value="redteam" className="rounded-full px-4">Red team{doneCount ? ` · ${passCount}/${CASES.length}` : ""}</TabsTrigger>
             </TabsList>
           </div>
 
@@ -404,7 +410,7 @@ export default function Page() {
                 <div key={i} className={`call ${c.name === "handoff" ? c.urgency : ""}`}>
                   {c.name === "handoff" && (
                     <>
-                      <Badge variant="outline" className={`mb-2 rounded-md font-mono font-normal uppercase tracking-wider ${TONE[c.urgency]}`}>
+                      <Badge variant="outline" className={`mb-3 border-0 font-mono font-normal uppercase tracking-wider ${TONE[c.urgency]}`}>
                         Handoff · {URGENCY[c.urgency]}
                       </Badge>
                       <p className="q">{c.question}</p>
@@ -453,7 +459,7 @@ export default function Page() {
               ) : (
                 <p className="muted">No turn yet.</p>
               )}
-              <Button variant="outline" size="sm" className="mt-5" disabled={busy || !live} onClick={() => generate(moment)}>
+              <Button variant="outline" size="sm" className="mt-5 rounded-full" disabled={busy || !live} onClick={() => generate(moment)}>
                 Regenerate this moment
               </Button>
           </TabsContent>
@@ -465,13 +471,13 @@ export default function Page() {
               </p>
               {RULES.map((r) => (
                 <div key={r.id} className={`rule ${rulesOn[r.id] ? "" : "off"}`}>
-                  <Switch id={`rule-${r.id}`} className="mt-1" checked={rulesOn[r.id]} onCheckedChange={(on) => setRulesOn((x) => ({ ...x, [r.id]: on }))} />
+                  <Switch id={`rule-${r.id}`} className="mt-1.5 data-[state=checked]:bg-[var(--ink)]" checked={rulesOn[r.id]} onCheckedChange={(on) => setRulesOn((x) => ({ ...x, [r.id]: on }))} />
                   <div>
                     <div className="rule-head">
                       <label htmlFor={`rule-${r.id}`}>
                         <strong>{r.title}</strong>
                       </label>
-                      <Badge variant="outline" className="rounded-md font-mono font-normal uppercase tracking-wider text-[var(--muted)]">
+                      <Badge variant="secondary" className="font-mono font-normal uppercase tracking-wider text-[var(--muted)]">
                         {r.owner}
                       </Badge>
                     </div>
@@ -487,7 +493,7 @@ export default function Page() {
                 then a separate grading call scores the reply against written criteria. Nothing is cached, so results can vary run to run.
               </p>
               <div className="runbar">
-                <Button disabled={evalBusy || !live} onClick={runEvals}>
+                <Button className="h-10 rounded-full border border-[var(--ink)] px-5" disabled={evalBusy || !live} onClick={runEvals}>
                   {evalBusy && <Spinner />}
                   {evalBusy ? `Running ${doneCount}/${CASES.length}…` : offRules.length ? `Run with ${offRules.length} rule${offRules.length > 1 ? "s" : ""} off` : "Run all cases"}
                 </Button>
@@ -518,7 +524,7 @@ export default function Page() {
                     </button>
                     {open === c.id && (
                       <div className="case-body">
-                        <p className="said">&ldquo;{c.message}&rdquo;</p>
+                        <p className="said">{c.message}</p>
                         <p className="small">
                           <b>Must</b> {c.mustDo}
                         </p>

@@ -55,7 +55,7 @@ lib/redteam.ts          the fourteen cases and their pass criteria
 lib/claude.ts           model calls, tool loop, grader
 ```
 
-The interface is Next.js with Tailwind. Buttons, tabs, switches, badges, inputs and the 90-day adherence strip are [Obsidian UI](https://www.obsidianui.dev) components copied into `components/`; the adherence strip is their Status Bars block with the wording changed from uptime to doses.
+The look borrows Hone's own palette (warm white, black ink, acid yellow, pale yellow and blue blocks) so it reads as something that could sit inside their product. The interface is Next.js with Tailwind. Buttons, tabs, switches, badges, inputs and the 90-day adherence strip are [Obsidian UI](https://www.obsidianui.dev) components copied into `components/`; the adherence strip is their Status Bars block with the wording changed from uptime to doses.
 
 A few decisions worth knowing about:
 
