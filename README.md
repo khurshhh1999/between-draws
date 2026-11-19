@@ -4,6 +4,8 @@ Hone retests a patient every three to six months. On a quarterly plan that is on
 
 I built it for the Product Manager, AI Experience role. It is not a mockup: every message, memory write, and care-team handoff on screen is generated live by Claude against a synthetic patient chart. There are two patients: Marcus, 44, on testosterone with a 90-day retest, and Dana, 51, on estradiol and progesterone for menopause with a six-month retest.
 
+**Live:** https://between-draws.vercel.app
+
 > Not affiliated with or endorsed by Hone Health. The patients, the physicians, and every number are made up.
 
 ## The three-minute tour
