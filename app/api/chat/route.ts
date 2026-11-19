@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { rateLimited } from "@/lib/limit";
-import { MOMENTS } from "@/lib/patient";
+import { getPatient } from "@/lib/patient";
 import { buildSystem, momentEvent } from "@/lib/prompt";
 import { ndjson, runTurn, SessionState } from "@/lib/claude";
 
@@ -18,14 +18,15 @@ export async function POST(req: Request) {
   const limited = rateLimited(req);
   if (limited) return limited;
   const parsed = Body.safeParse(await req.json().catch(() => null));
-  const moment = parsed.success ? MOMENTS.find((m) => m.id === parsed.data.momentId) : undefined;
-  if (!parsed.success || !moment) return Response.json({ error: "bad_request" }, { status: 400 });
+  const patient = parsed.success ? getPatient(parsed.data.patientId) : undefined;
+  const moment = parsed.success ? patient?.moments.find((m) => m.id === parsed.data.momentId) : undefined;
+  if (!parsed.success || !patient || !moment) return Response.json({ error: "bad_request" }, { status: 400 });
   const { rules, memory, handoffs, thread } = parsed.data;
   if (thread[thread.length - 1].role !== "user") return Response.json({ error: "bad_request" }, { status: 400 });
 
   return ndjson((emit) =>
     runTurn({
-      system: buildSystem({ day: moment.day, enabledRules: rules, memory, handoffs }),
+      system: buildSystem({ patient, day: moment.day, enabledRules: rules, memory, handoffs }),
       messages: [
         { role: "user", content: momentEvent(moment) },
         ...thread.filter((t) => t.text.trim()).map((t) => ({ role: t.role, content: t.text })),

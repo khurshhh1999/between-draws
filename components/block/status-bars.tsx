@@ -100,8 +100,8 @@ const DOT: Record<StatusLevel, string> = {
   down: "bg-(--obsidian-status-down)",
   none: "bg-muted-foreground/50",
 };
-const WORD: Record<StatusLevel, string> = { up: "On protocol", degraded: "Logged late", down: "Dose missed", none: "Not started" };
-const CURRENT: Record<StatusLevel, string> = { up: "On protocol", degraded: "Late dose", down: "Missed dose", none: "Not started" };
+const WORD: Record<StatusLevel, string> = { up: "On protocol", degraded: "Needs attention", down: "Dose missed", none: "Not started" };
+const CURRENT: Record<StatusLevel, string> = { up: "On protocol", degraded: "Needs attention", down: "Missed dose", none: "Not started" };
 
 const formatDuration = (minutes: number) =>
   minutes >= 60 ? `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ""}` : `${Math.max(1, Math.round(minutes))}m`;

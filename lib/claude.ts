@@ -305,6 +305,7 @@ export function ndjson(run: (emit: (e: TurnEvent) => void) => Promise<unknown>):
 }
 
 export const SessionState = z.object({
+  patientId: z.enum(["marcus", "dana"]),
   rules: z.array(z.string().max(40)).max(30),
   memory: z
     .array(z.object({ id: z.string().max(40), day: z.number().int().min(0).max(90), fact: z.string().max(300), source: z.string().max(80) }))

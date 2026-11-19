@@ -1,90 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RULES, ALL_RULE_IDS } from "@/lib/contract";
-import { MARKERS, MOMENTS, PATIENT, SEED_MEMORY, chartUpTo, type Marker, type Memory, type Moment } from "@/lib/patient";
-import { buildSystem, type Handoff } from "@/lib/prompt";
-import { CASES } from "@/lib/redteam";
-import type { ToolCall, TurnEvent, Verdict } from "@/lib/claude";
-import { streamTurn } from "@/lib/stream";
+import { useEffect, useMemo, useState } from "react";
+import { ContractPanel } from "@/components/contract-panel";
+import { Journey } from "@/components/journey";
+import { RedTeamPanel } from "@/components/redteam-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StatusBars, type StatusDay } from "@/components/block/status-bars";
-
-type Msg = { role: "user" | "assistant"; text: string; insight?: boolean; calls?: ToolCall[]; error?: string };
-type Meta = Extract<TurnEvent, { t: "meta" }>;
-type EvalResult = { status: "running" | "done" | "error"; reply?: string; calls?: ToolCall[]; verdict?: Verdict; message?: string };
-type Run = { off: string[]; pass: number; total: number };
-
-const URGENCY = { routine: "Routine", same_day: "Same day", emergency: "Emergency" } as const;
-
-// Synthetic program start, so day 90 lands on a real calendar date.
-const PROGRAM_START = Date.UTC(2026, 7, 21);
-
-// One bar per day of the program so far: not started, on protocol, or a missed dose.
-function adherence(day: number): StatusDay[] {
-  return Array.from({ length: day + 1 }, (_, d) => {
-    const date = new Date(PROGRAM_START + d * 86_400_000).toISOString().slice(0, 10);
-    if (d < 3) return { date, status: "none" as const };
-    if (d === 25) return { date, status: "down" as const, uptime: 0, incidents: [{ title: "Thursday dose not logged" }] };
-    return { date };
-  });
-}
-
-const TONE = { routine: "bg-white text-[var(--ok)]", same_day: "bg-white text-[var(--amber)]", emergency: "bg-[var(--coral)] text-white" } as const;
-
-// Where a value sits in its reference range, drawn as a nine-dot gauge.
-function gauge(m: Marker, value: number): string {
-  const nums = m.range.match(/[\d.]+/g)?.map(Number) ?? [];
-  const [lo, hi] = m.range.startsWith("under") ? [0, nums[0]] : [nums[0], nums[1]];
-  const slot = Math.round(((value - lo) / (hi - lo)) * 8);
-  if (slot < 0) return "●[·········]";
-  if (slot > 8 || (m.range.startsWith("under") && value >= hi)) return "[·········]●";
-  return `[${"·".repeat(slot)}●${"·".repeat(8 - slot)}]`;
-}
-
-function outOfRange(m: Marker, value: number): boolean {
-  const nums = m.range.match(/[\d.]+/g)?.map(Number) ?? [];
-  if (m.range.startsWith("under")) return value >= nums[0];
-  return nums.length === 2 ? value < nums[0] || value > nums[1] : false;
-}
+import { ALL_RULE_IDS } from "@/lib/contract";
+import { PATIENTS, type Patient } from "@/lib/patient";
+import { CASES } from "@/lib/redteam";
+import type { EvalResult, PanelTab, Run } from "@/lib/types";
 
 export default function Page() {
   const [live, setLive] = useState<boolean | null>(null);
-  const [idx, setIdx] = useState(0);
+  const [patientId, setPatientId] = useState<Patient["id"]>("marcus");
+  const [tab, setTab] = useState<PanelTab>("hood");
   const [rulesOn, setRulesOn] = useState<Record<string, boolean>>(() => Object.fromEntries(ALL_RULE_IDS.map((id) => [id, true])));
-  const [learned, setLearned] = useState<Memory[]>([]);
-  const [deleted, setDeleted] = useState<string[]>([]);
-  const [handoffs, setHandoffs] = useState<Handoff[]>([]);
-  const [threads, setThreads] = useState<Record<string, Msg[]>>({});
-  const [metas, setMetas] = useState<Record<string, Meta>>({});
-  const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"hood" | "contract" | "redteam">("hood");
-  const [view, setView] = useState<"chat" | "memory">("chat");
-  const [draft, setDraft] = useState("");
   const [results, setResults] = useState<Record<string, EvalResult>>({});
   const [runs, setRuns] = useState<Run[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
-  const [open, setOpen] = useState<string | null>(null);
-  const started = useRef(new Set<string>());
-  const inFlight = useRef<AbortController | null>(null);
-  const scroller = useRef<HTMLDivElement>(null);
 
-  const moment = MOMENTS[idx];
   const enabledRules = useMemo(() => ALL_RULE_IDS.filter((id) => rulesOn[id]), [rulesOn]);
-  const offRules = ALL_RULE_IDS.filter((id) => !rulesOn[id]);
-  const memory = useMemo(
-    () => [...SEED_MEMORY, ...learned].filter((m) => m.day <= moment.day && !deleted.includes(m.id)),
-    [learned, deleted, moment.day],
-  );
-  const openHandoffs = useMemo(() => handoffs.filter((h) => h.day <= moment.day), [handoffs, moment.day]);
-  const thread = threads[moment.id] ?? [];
-  const meta = metas[moment.id];
+  const offRules = useMemo(() => ALL_RULE_IDS.filter((id) => !rulesOn[id]), [rulesOn]);
 
   useEffect(() => {
     fetch("/api/status")
@@ -93,85 +29,7 @@ export default function Page() {
       .catch(() => setLive(false));
   }, []);
 
-  const run = useCallback(
-    async (m: Moment, url: string, body: Record<string, unknown>) => {
-      setBusy(true);
-      const patch = (fn: (last: Msg) => Msg) =>
-        setThreads((t) => {
-          const list = t[m.id] ?? [];
-          return { ...t, [m.id]: [...list.slice(0, -1), fn(list[list.length - 1])] };
-        });
-      const controller = new AbortController();
-      inFlight.current = controller;
-      try {
-        await streamTurn(url, body, (e) => {
-          if (e.t === "text") patch((last) => ({ ...last, text: last.text + e.d }));
-          else if (e.t === "reset") patch((last) => ({ ...last, text: "" }));
-          else if (e.t === "error") patch((last) => ({ ...last, error: e.message }));
-          else if (e.t === "meta") setMetas((x) => ({ ...x, [m.id]: e }));
-          else if (e.t === "tool") {
-            const call = e.call;
-            patch((last) => ({ ...last, calls: [...(last.calls ?? []), call] }));
-            if (call.name === "remember") setLearned((l) => [...l, { id: call.id, day: m.day, fact: call.fact, source: `chat, day ${m.day}` }]);
-            if (call.name === "forget") setDeleted((d) => [...d, call.id]);
-            if (call.name === "handoff") setHandoffs((h) => [...h, { day: m.day, urgency: call.urgency, question: call.question, summary: call.summary }]);
-          }
-        }, controller.signal);
-      } catch {
-        if (!controller.signal.aborted) patch((last) => ({ ...last, error: "Connection lost." }));
-      } finally {
-        setBusy(false);
-      }
-    },
-    [],
-  );
-
-  const generate = useCallback(
-    (m: Moment) => {
-      // Regenerating a moment discards what its previous run saved or escalated.
-      const fromThisRun = (x: Memory) => x.day === m.day && learned.some((l) => l.id === x.id);
-      setLearned((l) => l.filter((x) => x.day !== m.day));
-      setHandoffs((h) => h.filter((x) => x.day !== m.day));
-      setThreads((t) => ({ ...t, [m.id]: [{ role: "assistant", text: "", insight: true }] }));
-      void run(m, "/api/moment", {
-        momentId: m.id,
-        rules: enabledRules,
-        memory: memory.filter((x) => !fromThisRun(x)),
-        handoffs: openHandoffs.filter((h) => h.day !== m.day),
-      });
-    },
-    [run, enabledRules, memory, openHandoffs, learned],
-  );
-
-  useEffect(() => () => inFlight.current?.abort(), []);
-
-  // Each moment's proactive message is generated the first time you land on it.
-  useEffect(() => {
-    if (!live || busy || started.current.has(moment.id)) return;
-    started.current.add(moment.id);
-    generate(moment);
-  }, [live, busy, moment, generate]);
-
-  useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
-  }, [thread, view]);
-
-  function send(text: string) {
-    const clean = text.trim();
-    if (!clean || busy || !live) return;
-    const history = [...thread, { role: "user" as const, text: clean }];
-    setThreads((t) => ({ ...t, [moment.id]: [...history, { role: "assistant", text: "" }] }));
-    setDraft("");
-    setView("chat");
-    void run(moment, "/api/chat", {
-      momentId: moment.id,
-      rules: enabledRules,
-      memory,
-      handoffs: openHandoffs,
-      thread: history.filter((m) => m.text.trim()).map((m) => ({ role: m.role, text: m.text })),
-    });
-  }
-
+  // Three cases at a time, each a full reply plus a grading call.
   async function runEvals() {
     if (evalBusy || !live) return;
     setEvalBusy(true);
@@ -182,7 +40,11 @@ export default function Page() {
       for (let c = queue.shift(); c; c = queue.shift()) {
         const id = c.id;
         try {
-          const res = await fetch("/api/eval", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseId: id, rules: enabledRules }) });
+          const res = await fetch("/api/eval", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ caseId: id, rules: enabledRules }),
+          });
           const data = await res.json();
           final[id] = res.ok ? { status: "done", ...data } : { status: "error", message: data.message ?? "Failed", reply: data.reply, calls: data.calls };
         } catch {
@@ -197,23 +59,30 @@ export default function Page() {
     setEvalBusy(false);
   }
 
-  const system = buildSystem({ day: moment.day, enabledRules, memory, handoffs: openHandoffs });
-  const calls = thread.flatMap((m) => m.calls ?? []);
-  const passCount = Object.values(results).filter((r) => r.verdict?.pass).length;
-  const doneCount = Object.values(results).filter((r) => r.status !== "running").length;
-  const ruleTitle = (id: string) => RULES.find((r) => r.id === id)?.title ?? id;
+  const passed = Object.values(results).filter((r) => r.verdict?.pass).length;
+  const graded = Object.values(results).filter((r) => r.status !== "running").length;
 
   return (
     <main className="wrap">
       <header>
         <p className="eyebrow">Concept · AI Experience</p>
         <h1>
-          The 89 days <mark>between draws</mark>
+          The days <mark>between draws</mark>
         </h1>
         <p className="lede">
-          Baseline, Blueprint, Build, Become. Labs happen every 90 days; this is a working prototype of what the AI does for a patient on
-          the days in between, and of the contract that keeps it safe to ship.
+          Baseline, Blueprint, Build, Become. Labs come round every three to six months. This is a working prototype of what the AI does for
+          a patient on every day in between, and of the contract that keeps it safe to ship.
         </p>
+        <div className="switch" role="group" aria-label="Choose a patient">
+          {PATIENTS.map((p) => (
+            <button key={p.id} aria-pressed={p.id === patientId} onClick={() => setPatientId(p.id)}>
+              <span>
+                {p.first}, {p.age}
+              </span>
+              <small>{p.switchLabel}</small>
+            </button>
+          ))}
+        </div>
       </header>
 
       {live === false && (
@@ -228,332 +97,28 @@ export default function Page() {
         </Alert>
       )}
 
-      <nav className="timeline" aria-label="Patient journey">
-        {MOMENTS.map((m, i) => (
-          <button key={m.id} aria-current={i === idx ? "step" : undefined} className={`stop ${i === idx ? "active" : ""} ${threads[m.id] ? "seen" : ""}`} onClick={() => setIdx(i)}>
-            <span className="stage">{i === 0 || MOMENTS[i - 1].stage !== m.stage ? m.stage : " "}</span>
-            <span className="pin" />
-            <span className="day">Day {m.day}</span>
-            <span className="name">{m.title}</span>
-          </button>
-        ))}
-      </nav>
-
-      <div className="layout">
-        <section className="phone" aria-label="Patient app">
-          <div className="phone-head">
-            <div>
-              <strong>{PATIENT.first}</strong>
-              <span className="where">
-                {moment.stage} · day {moment.day}/90
-              </span>
-            </div>
-            <Tabs value={view} onValueChange={(v) => setView(v as "chat" | "memory")}>
-              <TabsList className="h-8 rounded-full">
-                <TabsTrigger value="chat" className="rounded-full px-3">Today</TabsTrigger>
-                <TabsTrigger value="memory" className="rounded-full px-3">Memory {memory.length}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-
-          <div className="markers">
-            {MARKERS.slice(0, 6).map((m) => {
-              const retested = moment.day >= 90;
-              const value = retested ? m.retest : m.baseline;
-              return (
-                <div key={m.id} className={`marker ${outOfRange(m, value) ? "flag" : ""}`}>
-                  <span>{m.name}</span>
-                  <b>
-                    {retested && <s>{m.baseline}</s>} {value}
-                  </b>
-                  <span className="gauge" aria-hidden>
-                    {gauge(m, value)}
-                  </span>
-                  <span className="sr-only">{outOfRange(m, value) ? "outside" : "within"} the reference range of {m.range}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="screen" ref={scroller} aria-live="polite">
-            {view === "memory" ? (
-              <div className="memory">
-                <p className="muted small">Everything the app has learned about you. Remove anything and it stops shaping what you see.</p>
-                {memory.length === 0 && <p className="muted">Nothing yet.</p>}
-                {memory.map((m) => (
-                  <div key={m.id} className="mem">
-                    <div>
-                      <p>{m.fact}</p>
-                      <span className="muted small">{m.source}</span>
-                    </div>
-                    <Button variant="ghost" size="sm" className="rounded-full text-[var(--muted)] hover:text-[var(--coral)]" onClick={() => setDeleted((d) => [...d, m.id])}>
-                      Forget
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <>
-                {thread.length === 0 && <p className="muted small pad">{live ? "Waiting for the trigger…" : moment.trigger}</p>}
-                {thread.map((m, i) => (
-                  <div key={i} className={`row ${m.role}`}>
-                    <div className={`bubble ${m.insight ? "insight" : ""}`}>
-                      {m.insight && <span className="kicker">For you today</span>}
-                      {m.text ||
-                        (m.error ? (
-                          ""
-                        ) : (
-                          <span className="typing">
-                            <Spinner className="size-3.5" /> Reading your chart
-                          </span>
-                        ))}
-                      {m.error && <span className="err">{m.error}</span>}
-                      {m.insight && m.text && (
-                        <details className="why">
-                          <summary>Why am I seeing this?</summary>
-                          {moment.trigger}
-                        </details>
-                      )}
-                    </div>
-                    {(m.calls ?? []).map((c, j) => (
-                      <div key={j} className={`receipt ${c.name === "handoff" ? c.urgency : ""}`}>
-                        {c.name === "handoff" && <>Sent to {PATIENT.physician}&rsquo;s team · {URGENCY[c.urgency].toLowerCase()}</>}
-                        {c.name === "remember" && <>Saved to memory: {c.fact}</>}
-                        {c.name === "forget" && <>Removed from memory</>}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-
-          {view === "chat" && (
-            <div className="composer">
-              <div className="chips">
-                {moment.suggestions.map((s) => (
-                  <Button key={s} variant="outline" size="sm" className="rounded-full font-normal" disabled={busy || !live} onClick={() => send(s)}>
-                    {s}
-                  </Button>
-                ))}
-              </div>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  send(draft);
-                }}
-              >
-                <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Message as ${PATIENT.first}`} maxLength={600} aria-label="Message" className="h-10 rounded-full px-4" />
-                <Button type="submit" className="h-10 rounded-full border border-[var(--ink)]" disabled={busy || !live || !draft.trim()}>
-                  Send
-                </Button>
-              </form>
-            </div>
-          )}
-        </section>
-
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="panel gap-0">
-          <div className="panel-head">
-            <TabsList className="h-10 rounded-full">
-              <TabsTrigger value="hood" className="rounded-full px-4">Under the hood</TabsTrigger>
-              <TabsTrigger value="contract" className="rounded-full px-4">Behavior contract{offRules.length ? ` · ${offRules.length} off` : ""}</TabsTrigger>
-              <TabsTrigger value="redteam" className="rounded-full px-4">Red team{doneCount ? ` · ${passCount}/${CASES.length}` : ""}</TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="hood" className="body">
-              <div className="bet">
-                <span className="label">The bet · day {moment.day}</span>
-                <p>{moment.bet}</p>
-                <dl>
-                  <div>
-                    <dt>Moves</dt>
-                    <dd>{moment.metric}</dd>
-                  </div>
-                  <div>
-                    <dt>Must hold</dt>
-                    <dd>{moment.guardrail}</dd>
-                  </div>
-                </dl>
-              </div>
-
-              <h2>What the model was given</h2>
-              <ul className="facts">
-                <li>
-                  <b>Trigger</b> {moment.trigger}
-                </li>
-                <li>
-                  <b>Chart</b> {chartUpTo(moment.day).length} log entries through day {moment.day},{" "}
-                  {moment.day >= 90 ? "baseline and retest labs" : "baseline labs only (the retest does not exist yet)"}
-                </li>
-                <li>
-                  <b>Memory</b> {memory.length ? memory.map((m) => m.fact).join(" · ") : "empty"}
-                </li>
-                <li>
-                  <b>Contract</b> {enabledRules.length} of {RULES.length} rules
-                  {offRules.length > 0 && <span className="warn"> (off: {offRules.map(ruleTitle).join(", ")})</span>}
-                </li>
-                <li>
-                  <b>Doses</b>
-                  <StatusBars label="Protocol adherence" days={adherence(moment.day)} maxDays={91} compact className="min-w-0" />
-                </li>
-              </ul>
-              <details className="prompt">
-                <summary>Exact system prompt for this turn</summary>
-                <pre>{[system.role, system.chart, system.state].join("\n\n———\n\n")}</pre>
-              </details>
-
-              <h2>What it did besides talk</h2>
-              {calls.length === 0 && <p className="muted">No tool calls in this moment yet. Try a suggested message.</p>}
-              {calls.map((c, i) => (
-                <div key={i} className={`call ${c.name === "handoff" ? c.urgency : ""}`}>
-                  {c.name === "handoff" && (
-                    <>
-                      <Badge variant="outline" className={`mb-3 border-0 font-mono font-normal uppercase tracking-wider ${TONE[c.urgency]}`}>
-                        Handoff · {URGENCY[c.urgency]}
-                      </Badge>
-                      <p className="q">{c.question}</p>
-                      <p>{c.summary}</p>
-                    </>
-                  )}
-                  {c.name === "remember" && (
-                    <>
-                      <span className="label">Memory write</span>
-                      <p>{c.fact}</p>
-                    </>
-                  )}
-                  {c.name === "forget" && (
-                    <>
-                      <span className="label">Memory delete</span>
-                      <p>{c.id}</p>
-                    </>
-                  )}
-                </div>
-              ))}
-
-              <h2>What the last turn cost</h2>
-              {meta ? (
-                <div className="stats">
-                  <div>
-                    <b>{meta.firstTokenMs !== null ? (meta.firstTokenMs / 1000).toFixed(1) : "–"}s</b>
-                    <span>to first word</span>
-                  </div>
-                  <div>
-                    <b>{(meta.ms / 1000).toFixed(1)}s</b>
-                    <span>total</span>
-                  </div>
-                  <div>
-                    <b>{(meta.usage.input + meta.usage.cacheRead + meta.usage.cacheWrite).toLocaleString()}</b>
-                    <span>tokens in{meta.usage.cacheRead ? `, ${meta.usage.cacheRead.toLocaleString()} cached` : ""}</span>
-                  </div>
-                  <div>
-                    <b>{meta.usage.output.toLocaleString()}</b>
-                    <span>tokens out</span>
-                  </div>
-                  <div>
-                    <b>{meta.rounds}</b>
-                    <span>model {meta.rounds === 1 ? "call" : "calls"}</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="muted">No turn yet.</p>
-              )}
-              <Button variant="outline" size="sm" className="mt-5 rounded-full" disabled={busy || !live} onClick={() => generate(moment)}>
-                Regenerate this moment
-              </Button>
-          </TabsContent>
-
-          <TabsContent value="contract" className="body">
-              <p className="intro">
-                {RULES.length} rules, written so a physician, a PM, and an engineer can argue over the same page. They are compiled word for word into
-                the system prompt. Switch one off, then replay a moment or run the red team to see whether that rule was doing any work.
-              </p>
-              {RULES.map((r) => (
-                <div key={r.id} className={`rule ${rulesOn[r.id] ? "" : "off"}`}>
-                  <Switch id={`rule-${r.id}`} className="mt-1.5 data-[state=checked]:bg-[var(--ink)]" checked={rulesOn[r.id]} onCheckedChange={(on) => setRulesOn((x) => ({ ...x, [r.id]: on }))} />
-                  <div>
-                    <div className="rule-head">
-                      <label htmlFor={`rule-${r.id}`}>
-                        <strong>{r.title}</strong>
-                      </label>
-                      <Badge variant="secondary" className="font-mono font-normal uppercase tracking-wider text-[var(--muted)]">
-                        {r.owner}
-                      </Badge>
-                    </div>
-                    <p>{r.text}</p>
-                  </div>
-                </div>
-              ))}
-          </TabsContent>
-
-          <TabsContent value="redteam" className="body">
-              <p className="intro">
-                {CASES.length} patient messages that a health AI gets wrong in costly ways. Each one runs through the real prompt and tools,
-                then a separate grading call scores the reply against written criteria. Nothing is cached, so results can vary run to run.
-              </p>
-              <div className="runbar">
-                <Button className="h-10 rounded-full border border-[var(--ink)] px-5" disabled={evalBusy || !live} onClick={runEvals}>
-                  {evalBusy && <Spinner />}
-                  {evalBusy ? `Running ${doneCount}/${CASES.length}…` : offRules.length ? `Run with ${offRules.length} rule${offRules.length > 1 ? "s" : ""} off` : "Run all cases"}
-                </Button>
-                <div className="history">
-                  {runs.map((r, i) => (
-                    <span key={i} className={r.pass === r.total ? "ok" : "bad"}>
-                      {r.pass}/{r.total} {r.off.length ? `without ${r.off.map(ruleTitle).join(", ")}` : "full contract"}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              {CASES.map((c) => {
-                const r = results[c.id];
-                const state = !r ? "idle" : r.status === "running" ? "running" : r.status === "error" ? "error" : r.verdict?.pass ? "pass" : "fail";
-                return (
-                  <div key={c.id} className={`case ${state}`}>
-                    <button className="case-head" aria-expanded={open === c.id} onClick={() => setOpen(open === c.id ? null : c.id)}>
-                      <span className="mark">
-                        {state === "running" ? <Spinner className="size-3.5" /> : { idle: "", error: "Error", pass: "Pass", fail: "Fail" }[state]}
-                      </span>
-                      <span className="case-main">
-                        <strong>{c.label}</strong>
-                        <span className="muted">
-                          {ruleTitle(c.rule)}
-                          {!rulesOn[c.rule] && " (rule off)"}
-                        </span>
-                      </span>
-                    </button>
-                    {open === c.id && (
-                      <div className="case-body">
-                        <p className="said">{c.message}</p>
-                        <p className="small">
-                          <b>Must</b> {c.mustDo}
-                        </p>
-                        <p className="small">
-                          <b>Must not</b> {c.mustNot}
-                        </p>
-                        {r?.reply && <p className="reply">{r.reply}</p>}
-                        {(r?.calls ?? []).map((k, i) => (
-                          <p key={i} className="small mono">
-                            {k.name === "handoff" ? `handoff(${k.urgency}): ${k.question}` : k.name === "remember" ? `remember: ${k.fact}` : `forget: ${k.id}`}
-                          </p>
-                        ))}
-                        {r?.verdict && (
-                          <p className="small">
-                            <b>Grader</b> {r.verdict.reason}
-                          </p>
-                        )}
-                        {r?.message && <p className="err">{r.message}</p>}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-          </TabsContent>
-        </Tabs>
-      </div>
+      {PATIENTS.map((p) => (
+        <Journey
+          key={p.id}
+          patient={p}
+          active={p.id === patientId}
+          live={live === true}
+          enabledRules={enabledRules}
+          offRules={offRules}
+          tab={tab}
+          onTab={setTab}
+          contractLabel={`Contract${offRules.length ? ` · ${offRules.length} off` : ""}`}
+          redteamLabel={`Red team${graded ? ` · ${passed}/${CASES.length}` : ""}`}
+          contract={<ContractPanel rulesOn={rulesOn} onToggle={(id, on) => setRulesOn((x) => ({ ...x, [id]: on }))} />}
+          redteam={
+            <RedTeamPanel results={results} runs={runs} running={evalBusy} live={live === true} rulesOn={rulesOn} offCount={offRules.length} onRun={runEvals} />
+          }
+        />
+      ))}
 
       <footer>
         Concept prototype by Khursheed Khan for the Product Manager, AI Experience role. Not affiliated with or endorsed by Hone Health. The
-        patient, physician, and every number here are synthetic.
+        patients, physicians, and every number here are synthetic.
       </footer>
     </main>
   );

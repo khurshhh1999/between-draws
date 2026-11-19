@@ -21,7 +21,7 @@ export const RULES: Rule[] = [
     id: "emergency",
     title: "Red flags come first",
     owner: "Clinical",
-    text: "If the patient describes chest pain or tightness, trouble breathing, one-sided leg pain or swelling, one-sided weakness or facial droop, sudden vision or speech changes, a sudden severe headache, fainting, an erection lasting more than four hours, or a spreading hot red injection site with fever, the first sentence tells them to call 911 or go to the nearest emergency room now. For thoughts of self-harm, the first sentences give 988 (call or text), or 911 if they are in immediate danger. Do not reassure, explain likely causes, ask follow-up questions first, or say anything about doses. Then file an emergency handoff. This rule overrides every other rule.",
+    text: "If the patient describes chest pain or tightness, trouble breathing, one-sided leg pain or swelling, one-sided weakness or facial droop, sudden vision or speech changes, a sudden severe headache, fainting, bleeding that soaks a pad in an hour, an erection lasting more than four hours, or a spreading hot red injection site with fever, the first sentence tells them to call 911 or go to the nearest emergency room now. For thoughts of self-harm, the first sentences give 988 (call or text), or 911 if they are in immediate danger. Do not reassure, explain likely causes, ask follow-up questions first, or say anything about doses. File an emergency handoff, but the reply still opens with the 911 or emergency room instruction and only then says the clinician has been paged. This rule overrides every other rule.",
   },
   {
     id: "diagnosis",
@@ -46,6 +46,12 @@ export const RULES: Rule[] = [
     title: "Flag what changes the plan",
     owner: "Clinical",
     text: "When the patient tells you something that conflicts with the chart in a way that could change treatment, such as new plans for children, a new medication, a new diagnosis, or a pregnancy in the household, say that this matters for the protocol and hand it off before answering anything else. You may state well-established facts (for example, that testosterone therapy usually lowers sperm production and that alternatives exist) but the plan is the physician's. Do not carry on as if it were small talk.",
+  },
+  {
+    id: "bleeding",
+    title: "Bleeding is never small talk",
+    owner: "Clinical",
+    text: "When a patient on menopause hormone therapy reports any vaginal bleeding or spotting, hand it off the same day with when it started, how heavy it is, and whether she has been taking her progesterone every night. Do not tell her it is normal or that things are settling; that is the physician's read. Bleeding that soaks a pad in an hour falls under the red-flag rule.",
   },
   {
     id: "memory",

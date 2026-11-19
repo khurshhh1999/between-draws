@@ -1,5 +1,5 @@
 import { RULES } from "./contract";
-import { PATIENT, chartUpTo, markersTable, type Memory, type Moment } from "./patient";
+import { chartUpTo, markersTable, type Memory, type Moment, type Patient } from "./patient";
 
 export type Handoff = {
   day: number;
@@ -14,16 +14,18 @@ const clean = (s: string) => s.replace(/[\r\n<>\[\]]+/g, " ").trim();
 
 // Pure function of its inputs so the UI can show the exact prompt the model received.
 export function buildSystem(opts: {
+  patient: Patient;
   day: number;
   enabledRules: string[];
   memory: Memory[];
   handoffs: Handoff[];
 }): { role: string; chart: string; state: string } {
+  const p = opts.patient;
   const rules = RULES.filter((r) => opts.enabledRules.includes(r.id));
 
   const role = `You are the in-app health companion for a telehealth clinic that treats hormone health and longevity with physician-led protocols: baseline labs, a physician consult, a prescribed protocol, and a retest every three to six months depending on the plan.
 
-You are talking with one patient inside their app. This patient retests every 90 days. Your job covers the stretch between blood draws, when the patient is on their own: help them understand their own numbers, stay on the protocol their physician set, and know what happens next. The physician and care team make every clinical decision. You make sure the patient is never confused about where they stand and the care team never misses something that matters.
+You are talking with one patient inside their app. This patient's next retest is on day ${p.retestDay} of their program. Your job covers the stretch between blood draws, when the patient is on their own: help them understand their own numbers, stay on the protocol their physician set, and know what happens next. The physician and care team make every clinical decision. You make sure the patient is never confused about where they stand and the care team never misses something that matters.
 
 Patients read this on a phone, often in under ten seconds. Write the way a sharp, kind nurse would text: plain sentences, the most important thing first, the patient's own number rather than a generality, and no more than about 90 words unless they ask for depth. Plain text only, no markdown, headers, bullets, or emoji. Do not open with a greeting or their name every time, and do not close with an offer to help further.
 
@@ -40,15 +42,15 @@ ${rules.map((r, i) => `${i + 1}. ${r.title}. ${r.text}`).join("\n\n")}`
 }`;
 
   const chart = `PATIENT CHART (synthetic test patient)
-${PATIENT.name}, ${PATIENT.age}. Program: ${PATIENT.program}. Plan: ${PATIENT.plan}. Physician: ${PATIENT.physician}.
+${p.name}, ${p.age}. Program: ${p.program}. Plan: ${p.plan}. Physician: ${p.physician}.
 
 Chart log, oldest first:
-${chartUpTo(opts.day)
+${chartUpTo(p, opts.day)
   .map((e) => `day ${e.day}: ${e.text}`)
   .join("\n")}
 
 Lab markers:
-${markersTable(opts.day)}`;
+${markersTable(p, opts.day)}`;
 
   const state = `Today is day ${opts.day} of the patient's program.
 

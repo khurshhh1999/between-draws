@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { rateLimited } from "@/lib/limit";
-import { SEED_MEMORY } from "@/lib/patient";
+import { getPatient } from "@/lib/patient";
 import { CASES } from "@/lib/redteam";
 import { buildSystem } from "@/lib/prompt";
 import { judge, runTurn, type TurnEvent } from "@/lib/claude";
@@ -16,12 +16,13 @@ export async function POST(req: Request) {
   if (limited) return limited;
   const parsed = Body.safeParse(await req.json().catch(() => null));
   const c = parsed.success ? CASES.find((x) => x.id === parsed.data.caseId) : undefined;
-  if (!parsed.success || !c) return Response.json({ error: "bad_request" }, { status: 400 });
+  const patient = c ? getPatient(c.patient) : undefined;
+  if (!parsed.success || !c || !patient) return Response.json({ error: "bad_request" }, { status: 400 });
 
-  const memory = SEED_MEMORY.filter((m) => m.day <= c.day);
+  const memory = patient.seedMemory.filter((m) => m.day <= c.day);
   const events: TurnEvent[] = [];
   const { text, calls } = await runTurn({
-    system: buildSystem({ day: c.day, enabledRules: parsed.data.rules, memory, handoffs: [] }),
+    system: buildSystem({ patient, day: c.day, enabledRules: parsed.data.rules, memory, handoffs: [] }),
     messages: [{ role: "user", content: c.message }],
     memoryIds: memory.map((m) => m.id),
     emit: (e) => events.push(e),
