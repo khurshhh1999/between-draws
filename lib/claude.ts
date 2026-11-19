@@ -5,9 +5,10 @@ import type { buildSystem } from "./prompt";
 import type { Case } from "./redteam";
 import { RULES } from "./contract";
 
-
 export const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
-const EFFORT = (process.env.CLAUDE_EFFORT || "low") as "low" | "medium" | "high";
+const EFFORTS = ["low", "medium", "high"] as const;
+const EFFORT = EFFORTS.find((e) => e === process.env.CLAUDE_EFFORT) ?? "low";
+const MAX_ROUNDS = 3;
 
 export function hasCredentials(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
@@ -133,6 +134,7 @@ export async function runTurn(opts: {
   messages: Anthropic.Beta.BetaMessageParam[];
   memoryIds: string[];
   emit: (e: TurnEvent) => void;
+  signal?: AbortSignal;
 }): Promise<{ text: string; calls: ToolCall[] }> {
   const { emit } = opts;
   if (!hasCredentials()) {
@@ -152,11 +154,11 @@ export async function runTurn(opts: {
   let rounds = 0;
 
   try {
-    while (rounds < 5) {
+    while (rounds < MAX_ROUNDS) {
       rounds++;
       const stream = client().beta.messages.stream({
         model: MODEL,
-        max_tokens: 8000,
+        max_tokens: 4000,
         output_config: { effort: EFFORT },
         system: [
           { type: "text", text: opts.system.role },
@@ -167,7 +169,7 @@ export async function runTurn(opts: {
         tools: TOOLS,
         messages,
         ...fallback(),
-      });
+      }, { signal: opts.signal });
 
       let roundHasText = false;
       stream.on("text", (d) => {
@@ -212,17 +214,24 @@ export async function runTurn(opts: {
       messages.push({ role: "user", content: results });
     }
   } catch (err) {
+    if (opts.signal?.aborted) return { text, calls };
     if (err instanceof Anthropic.AuthenticationError) {
       emit({ t: "error", code: "auth", message: "The API key was rejected." });
     } else if (err instanceof Anthropic.RateLimitError) {
       emit({ t: "error", code: "rate_limit", message: "Rate limited. Try again in a moment." });
     } else if (err instanceof Anthropic.APIError) {
-      emit({ t: "error", code: "api", message: `API error ${err.status ?? ""}: ${err.message}` });
+      console.error("Anthropic API error", err.status, err.message);
+      emit({ t: "error", code: "api", message: `The model request failed (${err.status ?? "network"}).` });
     } else {
-      emit({ t: "error", code: "api", message: err instanceof Error ? err.message : "Unknown error" });
+      console.error(err);
+      emit({ t: "error", code: "api", message: "Something went wrong generating this reply." });
     }
     return { text, calls };
   }
+
+  // Never leave the patient looking at a spinner: say so if the turn ended without a reply.
+  if (stop === "max_tokens") emit({ t: "error", code: "api", message: "The reply was cut off. Try again." });
+  else if (!text && stop !== "refusal") emit({ t: "error", code: "api", message: "No reply was produced. Try again." });
 
   emit({ t: "meta", ms: Date.now() - started, firstTokenMs, model, stop, rounds, usage });
   return { text, calls };
@@ -273,14 +282,21 @@ ${calls.length ? JSON.stringify(calls, null, 2) : "(none)"}`,
 // Stream TurnEvents to the browser as newline-delimited JSON.
 export function ndjson(run: (emit: (e: TurnEvent) => void) => Promise<unknown>): Response {
   const encoder = new TextEncoder();
+  let open = true;
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const emit = (e: TurnEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
+      const emit = (e: TurnEvent) => {
+        if (open) controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
+      };
       try {
         await run(emit);
       } finally {
-        controller.close();
+        if (open) controller.close();
       }
+    },
+    // The browser went away (navigation, Regenerate): stop writing.
+    cancel() {
+      open = false;
     },
   });
   return new Response(body, {
@@ -291,12 +307,12 @@ export function ndjson(run: (emit: (e: TurnEvent) => void) => Promise<unknown>):
 export const SessionState = z.object({
   rules: z.array(z.string().max(40)).max(30),
   memory: z
-    .array(z.object({ id: z.string().max(40), day: z.number(), fact: z.string().max(300), source: z.string().max(80) }))
+    .array(z.object({ id: z.string().max(40), day: z.number().int().min(0).max(90), fact: z.string().max(300), source: z.string().max(80) }))
     .max(30),
   handoffs: z
     .array(
       z.object({
-        day: z.number(),
+        day: z.number().int().min(0).max(90),
         urgency: z.enum(["routine", "same_day", "emergency"]),
         question: z.string().max(300),
         summary: z.string().max(1500),

@@ -6,6 +6,7 @@ import { MARKERS, MOMENTS, PATIENT, SEED_MEMORY, chartUpTo, type Marker, type Me
 import { buildSystem, type Handoff } from "@/lib/prompt";
 import { CASES } from "@/lib/redteam";
 import type { ToolCall, TurnEvent, Verdict } from "@/lib/claude";
+import { streamTurn } from "@/lib/stream";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,25 +22,6 @@ type EvalResult = { status: "running" | "done" | "error"; reply?: string; calls?
 type Run = { off: string[]; pass: number; total: number };
 
 const URGENCY = { routine: "Routine", same_day: "Same day", emergency: "Emergency" } as const;
-
-async function streamTurn(url: string, body: unknown, onEvent: (e: TurnEvent) => void) {
-  const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  if (!res.ok || !res.body) {
-    onEvent({ t: "error", code: "api", message: `Request failed (${res.status}).` });
-    return;
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) if (line.trim()) onEvent(JSON.parse(line) as TurnEvent);
-  }
-}
 
 // Synthetic program start, so day 90 lands on a real calendar date.
 const PROGRAM_START = Date.UTC(2026, 7, 21);
@@ -90,6 +72,7 @@ export default function Page() {
   const [evalBusy, setEvalBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const started = useRef(new Set<string>());
+  const inFlight = useRef<AbortController | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
   const moment = MOMENTS[idx];
@@ -118,6 +101,8 @@ export default function Page() {
           const list = t[m.id] ?? [];
           return { ...t, [m.id]: [...list.slice(0, -1), fn(list[list.length - 1])] };
         });
+      const controller = new AbortController();
+      inFlight.current = controller;
       try {
         await streamTurn(url, body, (e) => {
           if (e.t === "text") patch((last) => ({ ...last, text: last.text + e.d }));
@@ -131,9 +116,9 @@ export default function Page() {
             if (call.name === "forget") setDeleted((d) => [...d, call.id]);
             if (call.name === "handoff") setHandoffs((h) => [...h, { day: m.day, urgency: call.urgency, question: call.question, summary: call.summary }]);
           }
-        });
+        }, controller.signal);
       } catch {
-        patch((last) => ({ ...last, error: "Connection lost." }));
+        if (!controller.signal.aborted) patch((last) => ({ ...last, error: "Connection lost." }));
       } finally {
         setBusy(false);
       }
@@ -143,11 +128,22 @@ export default function Page() {
 
   const generate = useCallback(
     (m: Moment) => {
+      // Regenerating a moment discards what its previous run saved or escalated.
+      const fromThisRun = (x: Memory) => x.day === m.day && learned.some((l) => l.id === x.id);
+      setLearned((l) => l.filter((x) => x.day !== m.day));
+      setHandoffs((h) => h.filter((x) => x.day !== m.day));
       setThreads((t) => ({ ...t, [m.id]: [{ role: "assistant", text: "", insight: true }] }));
-      void run(m, "/api/moment", { momentId: m.id, rules: enabledRules, memory, handoffs: openHandoffs });
+      void run(m, "/api/moment", {
+        momentId: m.id,
+        rules: enabledRules,
+        memory: memory.filter((x) => !fromThisRun(x)),
+        handoffs: openHandoffs.filter((h) => h.day !== m.day),
+      });
     },
-    [run, enabledRules, memory, openHandoffs],
+    [run, enabledRules, memory, openHandoffs, learned],
   );
+
+  useEffect(() => () => inFlight.current?.abort(), []);
 
   // Each moment's proactive message is generated the first time you land on it.
   useEffect(() => {
@@ -234,7 +230,7 @@ export default function Page() {
 
       <nav className="timeline" aria-label="Patient journey">
         {MOMENTS.map((m, i) => (
-          <button key={m.id} className={`stop ${i === idx ? "active" : ""} ${threads[m.id] ? "seen" : ""}`} onClick={() => setIdx(i)}>
+          <button key={m.id} aria-current={i === idx ? "step" : undefined} className={`stop ${i === idx ? "active" : ""} ${threads[m.id] ? "seen" : ""}`} onClick={() => setIdx(i)}>
             <span className="stage">{i === 0 || MOMENTS[i - 1].stage !== m.stage ? m.stage : " "}</span>
             <span className="pin" />
             <span className="day">Day {m.day}</span>
@@ -243,13 +239,13 @@ export default function Page() {
         ))}
       </nav>
 
-      <div className="grid">
+      <div className="layout">
         <section className="phone" aria-label="Patient app">
           <div className="phone-head">
             <div>
               <strong>{PATIENT.first}</strong>
               <span className="where">
-                {moment.stage} · day {moment.day}/90{moment.day < 90 ? ` · retest in ${90 - moment.day}d` : ""}
+                {moment.stage} · day {moment.day}/90
               </span>
             </div>
             <Tabs value={view} onValueChange={(v) => setView(v as "chat" | "memory")}>
@@ -270,13 +266,16 @@ export default function Page() {
                   <b>
                     {retested && <s>{m.baseline}</s>} {value}
                   </b>
-                  <span className="gauge">{gauge(m, value)}</span>
+                  <span className="gauge" aria-hidden>
+                    {gauge(m, value)}
+                  </span>
+                  <span className="sr-only">{outOfRange(m, value) ? "outside" : "within"} the reference range of {m.range}</span>
                 </div>
               );
             })}
           </div>
 
-          <div className="screen" ref={scroller}>
+          <div className="screen" ref={scroller} aria-live="polite">
             {view === "memory" ? (
               <div className="memory">
                 <p className="muted small">Everything the app has learned about you. Remove anything and it stops shaping what you see.</p>
@@ -378,7 +377,7 @@ export default function Page() {
                 </dl>
               </div>
 
-              <h3>What the model was given</h3>
+              <h2>What the model was given</h2>
               <ul className="facts">
                 <li>
                   <b>Trigger</b> {moment.trigger}
@@ -404,7 +403,7 @@ export default function Page() {
                 <pre>{[system.role, system.chart, system.state].join("\n\n———\n\n")}</pre>
               </details>
 
-              <h3>What it did besides talk</h3>
+              <h2>What it did besides talk</h2>
               {calls.length === 0 && <p className="muted">No tool calls in this moment yet. Try a suggested message.</p>}
               {calls.map((c, i) => (
                 <div key={i} className={`call ${c.name === "handoff" ? c.urgency : ""}`}>
@@ -432,7 +431,7 @@ export default function Page() {
                 </div>
               ))}
 
-              <h3>What the last turn cost</h3>
+              <h2>What the last turn cost</h2>
               {meta ? (
                 <div className="stats">
                   <div>
@@ -466,7 +465,7 @@ export default function Page() {
 
           <TabsContent value="contract" className="body">
               <p className="intro">
-                Ten rules, written so a physician, a PM, and an engineer can argue over the same page. They are compiled word for word into
+                {RULES.length} rules, written so a physician, a PM, and an engineer can argue over the same page. They are compiled word for word into
                 the system prompt. Switch one off, then replay a moment or run the red team to see whether that rule was doing any work.
               </p>
               {RULES.map((r) => (
@@ -510,7 +509,7 @@ export default function Page() {
                 const state = !r ? "idle" : r.status === "running" ? "running" : r.status === "error" ? "error" : r.verdict?.pass ? "pass" : "fail";
                 return (
                   <div key={c.id} className={`case ${state}`}>
-                    <button className="case-head" onClick={() => setOpen(open === c.id ? null : c.id)}>
+                    <button className="case-head" aria-expanded={open === c.id} onClick={() => setOpen(open === c.id ? null : c.id)}>
                       <span className="mark">
                         {state === "running" ? <Spinner className="size-3.5" /> : { idle: "", error: "Error", pass: "Pass", fail: "Fail" }[state]}
                       </span>

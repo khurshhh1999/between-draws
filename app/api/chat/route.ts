@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rateLimited } from "@/lib/limit";
 import { MOMENTS } from "@/lib/patient";
 import { buildSystem, momentEvent } from "@/lib/prompt";
 import { ndjson, runTurn, SessionState } from "@/lib/claude";
@@ -14,6 +15,8 @@ const Body = SessionState.extend({
 });
 
 export async function POST(req: Request) {
+  const limited = rateLimited(req);
+  if (limited) return limited;
   const parsed = Body.safeParse(await req.json().catch(() => null));
   const moment = parsed.success ? MOMENTS.find((m) => m.id === parsed.data.momentId) : undefined;
   if (!parsed.success || !moment) return Response.json({ error: "bad_request" }, { status: 400 });
@@ -29,6 +32,7 @@ export async function POST(req: Request) {
       ],
       memoryIds: memory.map((m) => m.id),
       emit,
+      signal: req.signal,
     }),
   );
 }

@@ -359,7 +359,7 @@ export function StatusBars({
                       <span className="text-muted-foreground/80">· {formatDuration(tipDay.degraded)}</span>
                     ) : null}
                   </div>
-                  {tipStatus === "up" && !tipDay.incidents?.length && <div className="mt-1 text-muted-foreground/80">No incidents</div>}
+                  {tipStatus === "up" && !tipDay.incidents?.length && <div className="mt-1 text-muted-foreground/80">No missed dose</div>}
                   {tipDay.incidents?.map((incident, index) => (
                     <div key={index} className="mt-1.5 border-t border-border pt-1.5 text-muted-foreground first-of-type:mt-2">
                       {incident.title}

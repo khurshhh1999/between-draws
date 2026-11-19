@@ -1,6 +1,6 @@
 # Between Draws
 
-Hone sees a patient's blood every 90 days. This is a working prototype of what the AI does on the other 89, and of the contract that keeps it safe to ship.
+Hone retests a patient every three to six months. On a quarterly plan that is one blood draw and 89 days of the patient on their own. This is a working prototype of what the AI does on those days, and of the contract that keeps it safe to ship.
 
 I built it for the Product Manager, AI Experience role. It is not a mockup: every message, memory write, and care-team handoff on screen is generated live by Claude against a synthetic patient chart.
 
@@ -8,7 +8,7 @@ I built it for the Product Manager, AI Experience role. It is not a mockup: ever
 
 ## The three-minute tour
 
-1. **Walk the timeline.** Seven moments across one patient's first 90 days, from baseline results to the retest. At each one the app speaks first, because the trigger (results landed, a dose was missed, two quiet weeks) is known before the patient asks anything.
+1. **Walk the timeline.** Eight moments across one patient's first 90 days, from baseline results to the retest. At each one the app speaks first, because the trigger (results landed, a dose was missed, two quiet weeks) is known before the patient asks anything.
 2. **Push on it.** Tap a suggested message or type your own as the patient. Try "should I just take a bit more this week?" on day 12, or "my wife and I are thinking about another kid" on day 58.
 3. **Open Memory** on the phone. Everything the AI has learned is visible to the patient and can be deleted. Delete something, regenerate the moment, and the message changes.
 4. **Read Under the hood.** For each moment: the product bet, the metric it should move, the guardrail it must hold, the exact system prompt, the tool calls, and what the turn cost in time and tokens.
@@ -16,7 +16,7 @@ I built it for the Product Manager, AI Experience role. It is not a mockup: ever
 
 ## Why it's shaped like this
 
-**The product lives between the labs.** Baseline and retest are the two moments a patient is guaranteed to show up. Retention is decided in the gap: the first injection, the week-two "nothing's happening," the missed dose, the stretch where they feel fine and stop opening the app. So the roadmap here is a list of moments, each with a trigger, a bet, one metric, and one guardrail, rather than a list of features.
+**The product lives between the labs.** Baseline and retest are the two moments a patient is guaranteed to show up. Retention is decided in the gap: the consult they half remember, the first injection, the week-two "nothing's happening," the missed dose, the stretch where they feel fine and stop opening the app. So the roadmap here is a list of moments, each with a trigger, a bet, one metric, and one guardrail, rather than a list of features.
 
 **Proactive before conversational.** Chat only helps the patients who think to ask. Each moment starts with the app saying the useful thing, and chat is where the patient pushes back.
 
@@ -31,14 +31,21 @@ I built it for the Product Manager, AI Experience role. It is not a mockup: ever
 | Moment | Primary metric | Guardrail |
 | --- | --- | --- |
 | Results land | Results viewed → consult booked in 48h | No diagnostic claims before physician review |
+| After the consult | Consult completed → protocol accepted and shipped | Recap contains only what is in the physician's note |
 | First injection | Delivered → first dose logged in 72h | Technique questions beyond training go to the care team |
 | Day-12 dip | Day-30 retention among "no change" check-ins | No promised timelines |
 | Missed dose | On-schedule doses in the following 30 days | Never advises on making up a dose |
 | Quiet stretch | Retest completion among day-60 inactives | One message, not a drip |
-| Retest prep | Retests drawn in-window and fasted | Guidance matches the lab order |
-| Second draw | Follow-up consult booked; renewal | Every out-of-range marker handed off with context |
+| Retest prep | Retests drawn as ordered: in window, before the dose, fasted | Guidance matches the lab order |
+| Second draw | Follow-up consult booked; still an active member at day 120 | Every out-of-range marker handed off with context |
 
-Across all of them: handoff precision (how many the care team agrees needed a clinician) and red-team pass rate on every prompt or model change.
+Across all of them:
+
+- **Handoff recall and precision.** Recall first: a clinician audits a sample of chats for things that should have been escalated and were not, because the missed handoff is the dangerous failure. Precision (how many handoffs the care team agrees needed a clinician) keeps the queue usable.
+- **Care-team minutes per patient**, since an AI that shifts work onto clinicians has not helped.
+- **Red-team pass rate** on every prompt or model change.
+
+The bets in the app are hypotheses, not findings. I have no Hone data. Each one would ship behind a holdout so retention changes can be credited to the feature rather than to the season.
 
 ## How it works
 
@@ -62,7 +69,8 @@ A few decisions worth knowing about:
 - **The model never sees the future.** The chart is an append-only log filtered to "today," so on day 58 the retest numbers do not exist in the prompt. One of the red-team cases checks that it won't guess them.
 - **Three tools:** `remember`, `forget`, and `handoff_to_care_team`. Inputs are schema-enforced and validated again on the server.
 - **The server is stateless.** Memory and handoffs live in the browser session and are sent with each request, which keeps the demo deployable anywhere and makes "delete this memory" trivially real.
-- **The grader doesn't see the prompt.** It gets the rule, the pass criteria, the patient message, the reply, and the tool calls. It grades behavior, not wording.
+- **The grader doesn't see the prompt.** It gets the rule, the pass criteria, the patient message, the reply, and the tool calls. It grades behavior, not wording. It is the same model as the one being graded, so their blind spots overlap; a production version would calibrate it against clinician-labeled examples.
+- **Stored state is treated as untrusted.** Memory and handoffs round-trip through the browser, so they are sanitized and fenced as data before they reach the prompt.
 - **Prompt order is cache-friendly.** Role and contract, then chart, then the volatile state (day, memory, open handoffs).
 - **Low effort by default.** Replies run on Claude Opus 5.5 at low reasoning effort (`CLAUDE_EFFORT` to change). In my runs a proactive message took roughly 6 to 15 seconds end to end, longer when it files a handoff first. That is too slow for chat in production and is the first thing I would tune.
 - **Refusal fallback is on.** If the primary model's safety classifier declines a turn, the API retries on a fallback model in the same request. Set `CLAUDE_FALLBACKS=off` to disable.
@@ -73,13 +81,15 @@ Small numbers, single runs, so treat these as anecdotes rather than results:
 
 - The first full run scored 13 of 14. The miss was the model opening with "please don't double up tonight" when asked about making up a missed dose. That exposed a gap in the spec, not just the model: is "stay on what you were prescribed until the doctor replies" a dosing instruction? I decided it is the one thing the AI may say, wrote that into the rule, and the case passed on the next two runs.
 - With the "Physicians own the protocol" rule switched off entirely, a full run still scored 14 of 14. Either the rest of the prompt already carries that behavior, or my dosing cases are too easy. Both are worth knowing before anyone argues about the wording of that rule.
-- Live testing outside the suite caught two things the suite did not: the model filing a care-team handoff for baseline results a physician had already reviewed (noise for clinicians), and telling a patient with chest tightness to hold his next dose. Both should become cases.
+- Live testing outside the suite caught two things the suite did not: the model filing a care-team handoff for baseline results a physician had already reviewed (noise for clinicians), and telling a patient with chest tightness to hold his next dose. The emergency rule now says it overrides everything and says nothing about doses, and the chest case fails any reply that does.
+- After those rewrites a full run scored 13 of 14, and the miss was the missed-dose case again: the model added "don't make up the missed shot," which the grader read as deciding the question. This case flips between runs. I read that as a product gap rather than a prompt bug. A clinic has a standard missed-dose instruction, and the AI should quote the physician-approved wording instead of improvising or escalating every miss.
+- A clinical read-through changed several rules: emergencies go to an ER rather than urgent care, the AI may not promise to keep a disclosure out of the record, and a hematocrit of 51.2% is a routine review rather than an alarm.
 
 ## Grounding it in real data
 
 One hand-written patient and fourteen hand-written cases is where this starts, not where it should stay. The public sources I would pull in next:
 
-- **NHANES** (CDC; the 2021–23 cycle is also mirrored on Kaggle). Real adult panels including total testosterone, estradiol, SHBG, CBC, lipids, HbA1c, vitamin D and hs-CRP. I would build about fifty baseline patients from it so the AI is tested on the spread of real numbers. It is cross-sectional, so retests would still be simulated and labelled as such.
+- **NHANES** (CDC; several cycles are mirrored on Kaggle, and which cycles include the sex-hormone panel needs checking). Real adult panels including total testosterone, estradiol, SHBG, CBC, lipids, HbA1c, vitamin D and hs-CRP. I would build about fifty baseline patients from it so the AI is tested on the spread of real numbers. It is cross-sectional, so retests would still be simulated and labelled as such.
 - **HealthBench** (OpenAI). Multi-turn health conversations with physician-written rubrics, tagged by themes such as emergency referral. A better source of grading criteria than my own.
 - **MediQ AskDocs**. Around 55k real patient questions from r/AskDocs. Filtered for testosterone, menopause, thyroid, GLP-1 and missed-dose posts, it gives eval inputs in patients' own words.
 - **MedSafetyBench** for harmful dosing and prescription requests, and the Kaggle **Suicide and Depression Detection** set for crisis-language cases.
@@ -98,12 +108,14 @@ npm run dev
 
 Open http://localhost:3000.
 
-To put it on a URL, deploy to Vercel and set `ANTHROPIC_API_KEY` as an environment variable. There is no auth or rate limiting in front of the API routes, so use a key with a spend limit.
+To put it on a URL, deploy to Vercel and set `ANTHROPIC_API_KEY` as an environment variable. The API routes have a basic per-IP rate limit and no auth, so use a key with a spend limit.
 
 ## What this is not
 
 - Not clinically validated. The contract and cases reflect my reading of how TRT care works; a medical director would rewrite some of them, which is the point of making them one editable page.
 - Not an eval you can trust yet. Fourteen cases and a single grader is a smoke test. The real version needs human-labeled examples to calibrate the grader, multi-turn cases, and a few hundred messages sampled from real conversations.
+- Not ready for real patients. Sending health information to a model provider needs a business associate agreement, zero-retention terms, and a privacy review. None of that exists here because no real data does.
+- One patient type. Marcus is a man on testosterone. Hone treats as many women, and menopause care has its own safety rules (progesterone adherence, bleeding after menopause) that this contract does not cover yet. That is the first thing I would add.
 - Not connected to anything. No EHR, no pharmacy, no messaging. The triggers are hard-coded events in a synthetic chart.
 
 Khursheed Khan

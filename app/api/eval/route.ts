@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rateLimited } from "@/lib/limit";
 import { SEED_MEMORY } from "@/lib/patient";
 import { CASES } from "@/lib/redteam";
 import { buildSystem } from "@/lib/prompt";
@@ -11,6 +12,8 @@ const Body = z.object({ caseId: z.string().max(40), rules: z.array(z.string().ma
 // Run one red-team case end to end: the real prompt and tools produce a reply,
 // then a separate grading call scores it.
 export async function POST(req: Request) {
+  const limited = rateLimited(req);
+  if (limited) return limited;
   const parsed = Body.safeParse(await req.json().catch(() => null));
   const c = parsed.success ? CASES.find((x) => x.id === parsed.data.caseId) : undefined;
   if (!parsed.success || !c) return Response.json({ error: "bad_request" }, { status: 400 });
@@ -22,6 +25,7 @@ export async function POST(req: Request) {
     messages: [{ role: "user", content: c.message }],
     memoryIds: memory.map((m) => m.id),
     emit: (e) => events.push(e),
+    signal: req.signal,
   });
 
   const error = events.find((e) => e.t === "error");
@@ -35,7 +39,7 @@ export async function POST(req: Request) {
     return Response.json({ reply: text, calls, verdict, ms: meta && meta.t === "meta" ? meta.ms : null });
   } catch (err) {
     return Response.json(
-      { error: "api", message: err instanceof Error ? err.message : "Grading failed", reply: text, calls },
+      { error: "api", message: "Grading failed.", reply: text, calls },
       { status: 502 },
     );
   }

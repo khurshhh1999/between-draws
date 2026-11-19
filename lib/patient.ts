@@ -20,7 +20,7 @@ export const PATIENT = {
 
 export const MARKERS: Marker[] = [
   { id: "tt", name: "Total testosterone", unit: "ng/dL", range: "300–1000", baseline: 264, retest: 612 },
-  { id: "ft", name: "Free testosterone", unit: "pg/mL", range: "9–30", baseline: 5.1, retest: 14.8 },
+  { id: "ft", name: "Free testosterone (direct)", unit: "pg/mL", range: "9–30", baseline: 5.1, retest: 14.8 },
   { id: "e2", name: "Estradiol", unit: "pg/mL", range: "10–40", baseline: 22, retest: 38 },
   { id: "hct", name: "Hematocrit", unit: "%", range: "38.5–50", baseline: 46.1, retest: 51.2 },
   { id: "psa", name: "PSA", unit: "ng/mL", range: "0–4", baseline: 0.8, retest: 0.9 },
@@ -29,7 +29,7 @@ export const MARKERS: Marker[] = [
   { id: "apob", name: "ApoB", unit: "mg/dL", range: "under 90", baseline: 112, retest: 104 },
   { id: "vitd", name: "Vitamin D (25-OH)", unit: "ng/mL", range: "30–80", baseline: 24, retest: 41 },
   { id: "tsh", name: "TSH", unit: "mIU/L", range: "0.4–4.0", baseline: 2.1, retest: 2.0 },
-  { id: "crp", name: "hs-CRP", unit: "mg/L", range: "under 1.0", baseline: 2.4, retest: 1.6 },
+  { id: "crp", name: "hs-CRP", unit: "mg/L", range: "under 3.0", baseline: 2.4, retest: 1.6 },
 ];
 
 export type ChartEvent = { day: number; text: string };
@@ -38,15 +38,15 @@ export type ChartEvent = { day: number; text: string };
 export const CHART: ChartEvent[] = [
   { day: 0, text: "Baseline labs resulted (11 markers below)." },
   { day: 0, text: "Intake: reports low energy, poor sleep, slower recovery for about a year. Family complete, no plans for more children." },
-  { day: 3, text: `Video consult with ${PATIENT.physician}. Protocol started: testosterone cypionate 70 mg subcutaneous, twice weekly (Mon and Thu). Vitamin D3 5,000 IU daily.` },
-  { day: 3, text: "Physician note: reviewed every baseline marker with the patient, including HbA1c, ApoB, hs-CRP and vitamin D. Recheck all markers at day 90. Hematocrit and estradiol are the two to watch on this protocol. Lipids: lifestyle first, revisit ApoB at retest." },
+  { day: 3, text: `Video consult with ${PATIENT.physician}. Low testosterone confirmed on two morning draws (264 and 271 ng/dL) with LH and FSH. Sleep apnea screen low risk. Protocol started: testosterone cypionate 70 mg subcutaneous, twice weekly (Mon and Thu). Vitamin D3 5,000 IU daily.` },
+  { day: 3, text: "Physician note: reviewed every baseline marker with the patient, including HbA1c, ApoB, hs-CRP and vitamin D. Recheck all markers at day 90. Hematocrit and estradiol are the two to watch on this protocol; hematocrit below 54% is a routine review, 54% or above needs a same-day call. Lipids: lifestyle first, revisit ApoB at retest." },
   { day: 5, text: "First shipment delivered. Injection training video watched." },
   { day: 12, text: "Check-in survey: energy 4/10 (baseline 4/10), sleep 5/10, mood 6/10." },
   { day: 25, text: "Injection log: Thursday dose not logged." },
   { day: 30, text: "Refill shipped. Check-in survey: energy 6/10, sleep 6/10." },
   { day: 44, text: "Check-in survey: energy 7/10, sleep 7/10. Injections logged on schedule since day 28." },
   { day: 58, text: "No app opens in 14 days. Injections still logged via reminder taps." },
-  { day: 83, text: "Day-90 lab order placed. Draw scheduled for day 90, 8:10am." },
+  { day: 83, text: "Day-90 lab order placed. Draw scheduled for day 90, 8:10am. Order instructions: draw before that day's injection (trough level), fast for 8 hours, water only and plenty of it." },
   { day: 90, text: "Retest labs resulted (retest column below)." },
 ];
 
@@ -87,20 +87,33 @@ export const MOMENTS: Moment[] = [
     trigger: "Baseline labs resulted 4 minutes ago. Consult not yet booked.",
     brief:
       "His first lab results just arrived and he has not spoken to a physician yet. Tell him what stands out and what looks fine, in the order he would care about, and make the consult the obvious next step.",
-    bet: "A wall of 70 markers is where people stall. Three sentences that say what matters turns a PDF into a reason to book.",
+    bet: "My bet is that a page of lab numbers is where people stall. Three sentences on what matters turns a PDF into a reason to book.",
     metric: "Results viewed → consult booked within 48h",
     guardrail: "Zero diagnostic claims before a physician has reviewed",
     suggestions: ["Is 264 bad?", "What should I ask the doctor?", "Do I have low T?"],
   },
   {
+    id: "consult",
+    day: 3,
+    stage: "Blueprint",
+    title: "After the consult",
+    trigger: "Video consult ended 20 minutes ago. Protocol prescribed.",
+    brief:
+      "He just finished his first consult and a protocol was prescribed. Recap in plain words what was decided and what happens next, so he does not have to rely on memory of a 20-minute call.",
+    bet: "People forget most of what a doctor tells them within the hour. A recap he can reread is the cheapest way to make the plan stick before the box arrives.",
+    metric: "Consult completed → protocol accepted and shipped",
+    guardrail: "The recap contains only what is in the physician's note",
+    suggestions: ["Why twice a week?", "What are you watching for?", "How long until the meds arrive?"],
+  },
+  {
     id: "start",
     day: 5,
-    stage: "Blueprint",
+    stage: "Build",
     title: "First injection",
     trigger: "First shipment delivered today. No injection logged yet.",
     brief:
       "His medication arrived today and the first injection is the hardest one. Help him get through it and set honest expectations for the first two weeks.",
-    bet: "The first self-injection is the single biggest drop-off in the protocol. Knowing he's nervous lets the product meet him there instead of sending a generic how-to.",
+    bet: "I would expect the first self-injection to be one of the biggest drop-offs in the protocol. Knowing he's nervous lets the product meet him there instead of sending a generic how-to.",
     metric: "Shipment delivered → first dose logged within 72h",
     guardrail: "Technique questions beyond the training material go to the care team",
     suggestions: ["I'm kind of dreading this", "Can I do it in my thigh instead?", "What if I mess it up?"],
@@ -152,8 +165,8 @@ export const MOMENTS: Moment[] = [
     trigger: "Day-90 draw scheduled in 7 days at 8:10am.",
     brief:
       "His retest is in a week. Tell him what he needs to do so the numbers are clean and comparable, and what the retest will answer.",
-    bet: "A bad draw (wrong time, not fasted) wastes a quarter. Prep is the cheapest quality win in the whole loop.",
-    metric: "Retests drawn in-window and fasted",
+    bet: "A bad draw (after the dose, not fasted, dehydrated) wastes a quarter. Prep is the cheapest quality win in the whole loop.",
+    metric: "Retests drawn as ordered: in window, before the dose, fasted",
     guardrail: "Prep guidance matches the lab order, nothing invented",
     suggestions: ["What time should I do my shot before the draw?", "Can I have coffee?", "What are you hoping to see?"],
   },
@@ -164,9 +177,9 @@ export const MOMENTS: Moment[] = [
     title: "The second draw",
     trigger: "Retest labs resulted 6 minutes ago. Hematocrit above range.",
     brief:
-      "His retest results just arrived. Most of it is good news and one marker needs a physician's eyes. Tell him both, honestly, in the right order.",
+      "His retest results just arrived. Most of it is good news. Hematocrit is above range and is the one his physician asked to watch; ApoB has improved but is still above target. Tell him all of it, honestly, in the right order.",
     bet: "The retest is the product's proof moment and its riskiest one. Candid about the flag, clear about who decides, and he trusts the next 90 days.",
-    metric: "Retest viewed → follow-up consult booked; plan renewal",
+    metric: "Retest viewed → follow-up consult booked; still an active member at day 120",
     guardrail: "Every out-of-range marker handed to a physician with context, 100%",
     suggestions: ["Is 51.2 dangerous?", "Should I donate blood to bring it down?", "So should I lower my dose?"],
   },
