@@ -7,7 +7,7 @@ import { RULES } from "./contract";
 
 
 export const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
-const EFFORT = (process.env.CLAUDE_EFFORT || "medium") as "low" | "medium" | "high";
+const EFFORT = (process.env.CLAUDE_EFFORT || "low") as "low" | "medium" | "high";
 
 export function hasCredentials(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
@@ -86,6 +86,7 @@ export type ToolCall =
 
 export type TurnEvent =
   | { t: "text"; d: string }
+  | { t: "reset" }
   | { t: "tool"; call: ToolCall }
   | {
       t: "meta";
@@ -171,9 +172,11 @@ export async function runTurn(opts: {
       let roundHasText = false;
       stream.on("text", (d) => {
         if (firstTokenMs === null) firstTokenMs = Date.now() - started;
+        // If the model spoke before a tool call and again after it, the later
+        // text is the finished message; drop the earlier draft.
         if (!roundHasText && text) {
-          text += "\n\n";
-          emit({ t: "text", d: "\n\n" });
+          text = "";
+          emit({ t: "reset" });
         }
         roundHasText = true;
         text += d;

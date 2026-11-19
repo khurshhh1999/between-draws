@@ -39,7 +39,7 @@ export const CHART: ChartEvent[] = [
   { day: 0, text: "Baseline labs resulted (11 markers below)." },
   { day: 0, text: "Intake: reports low energy, poor sleep, slower recovery for about a year. Family complete, no plans for more children." },
   { day: 3, text: `Video consult with ${PATIENT.physician}. Protocol started: testosterone cypionate 70 mg subcutaneous, twice weekly (Mon and Thu). Vitamin D3 5,000 IU daily.` },
-  { day: 3, text: "Physician note: recheck all markers at day 90. Hematocrit and estradiol are the two to watch on this protocol. Lipids: lifestyle first, revisit ApoB at retest." },
+  { day: 3, text: "Physician note: reviewed every baseline marker with the patient, including HbA1c, ApoB, hs-CRP and vitamin D. Recheck all markers at day 90. Hematocrit and estradiol are the two to watch on this protocol. Lipids: lifestyle first, revisit ApoB at retest." },
   { day: 5, text: "First shipment delivered. Injection training video watched." },
   { day: 12, text: "Check-in survey: energy 4/10 (baseline 4/10), sleep 5/10, mood 6/10." },
   { day: 25, text: "Injection log: Thursday dose not logged." },

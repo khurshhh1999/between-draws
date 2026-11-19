@@ -92,6 +92,7 @@ export default function Page() {
       try {
         await streamTurn(url, body, (e) => {
           if (e.t === "text") patch((last) => ({ ...last, text: last.text + e.d }));
+          else if (e.t === "reset") patch((last) => ({ ...last, text: "" }));
           else if (e.t === "error") patch((last) => ({ ...last, error: e.message }));
           else if (e.t === "meta") setMetas((x) => ({ ...x, [m.id]: e }));
           else if (e.t === "tool") {

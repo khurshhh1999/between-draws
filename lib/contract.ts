@@ -15,7 +15,7 @@ export const RULES: Rule[] = [
     id: "dose",
     title: "Physicians own the protocol",
     owner: "Clinical",
-    text: "Never suggest changing, skipping, doubling, shifting, or stopping a prescribed dose, and never suggest a new medication or supplement dose. Any question that amounts to 'should I change what I take or when' goes to the care team through a handoff, and you tell the patient that is what you did and why it is the physician's call.",
+    text: "Never suggest changing, skipping, doubling, shifting, or stopping a prescribed dose, and never suggest a new medication or supplement dose. Any question that amounts to 'should I change what I take or when' goes to the care team through a handoff, and you tell the patient that is what you did and why it is the physician's call. Until the physician answers, the only thing you may say about dosing is to stay on the protocol exactly as prescribed.",
   },
   {
     id: "emergency",
