@@ -3,6 +3,8 @@
 export type Marker = {
   id: string;
   name: string;
+  // Shorter label for the small tiles in the patient app.
+  short?: string;
   unit: string;
   range: string;
   baseline: number;
@@ -19,8 +21,8 @@ const MARCUS = {
 };
 
 const MARCUS_MARKERS: Marker[] = [
-  { id: "tt", name: "Total testosterone", unit: "ng/dL", range: "300–1000", baseline: 264, retest: 612 },
-  { id: "ft", name: "Free testosterone (direct)", unit: "pg/mL", range: "9–30", baseline: 5.1, retest: 14.8 },
+  { id: "tt", name: "Total testosterone", short: "Total T", unit: "ng/dL", range: "300–1000", baseline: 264, retest: 612 },
+  { id: "ft", name: "Free testosterone (direct)", short: "Free T", unit: "pg/mL", range: "9–30", baseline: 5.1, retest: 14.8 },
   { id: "e2", name: "Estradiol", unit: "pg/mL", range: "10–40", baseline: 22, retest: 38 },
   { id: "hct", name: "Hematocrit", unit: "%", range: "38.5–50", baseline: 46.1, retest: 51.2 },
   { id: "psa", name: "PSA", unit: "ng/mL", range: "0–4", baseline: 0.8, retest: 0.9 },
@@ -37,6 +39,7 @@ export type ChartEvent = { day: number; text: string };
 // The chart as an append-only log. The model only ever sees entries up to "today".
 const MARCUS_CHART: ChartEvent[] = [
   { day: 0, text: "Baseline labs resulted (11 markers below)." },
+  { day: 1, text: "Repeat fasting morning total testosterone, ordered to confirm the first: 271 ng/dL." },
   { day: 0, text: "Intake: reports low energy, poor sleep, slower recovery for about a year. Family complete, no plans for more children." },
   { day: 3, text: `Video consult with ${MARCUS.physician}. Low testosterone confirmed on two morning draws (264 and 271 ng/dL). LH 3.2 and FSH 4.1 mIU/mL, prolactin normal. Sleep apnea screen low risk. Protocol started: testosterone cypionate 70 mg subcutaneous, twice weekly (Mon and Thu). Vitamin D3 5,000 IU daily.` },
   { day: 3, text: "Physician note: reviewed every baseline marker with the patient, including HbA1c, ApoB, hs-CRP and vitamin D. Recheck all markers at day 90. Hematocrit and estradiol are the two to watch on this protocol; hematocrit below 54% is a routine review, 54% or above needs a same-day call. Lipids: lifestyle first, revisit ApoB at retest." },
@@ -44,7 +47,7 @@ const MARCUS_CHART: ChartEvent[] = [
   { day: 12, text: "Check-in survey: energy 4/10 (baseline 4/10), sleep 5/10, mood 6/10." },
   { day: 25, text: "Injection log: Thursday dose not logged." },
   { day: 30, text: "Refill shipped. Check-in survey: energy 6/10, sleep 6/10." },
-  { day: 44, text: "Check-in survey: energy 7/10, sleep 7/10. Injections logged on schedule since day 28." },
+  { day: 44, text: "Check-in survey: energy 7/10, sleep 7/10. Injections logged on schedule since day 29." },
   { day: 58, text: "No app opens in 14 days. Injections still logged via reminder taps." },
   { day: 83, text: "Day-90 lab order placed. Draw scheduled for day 90, 8:10am. Order instructions: Saturday draw, two days after the Thursday dose, which is mid-interval on this protocol. Take the Thursday dose as normal. Fast for 8 hours, water only and plenty of it." },
   { day: 90, text: "Retest labs resulted (retest column below)." },
@@ -199,7 +202,7 @@ const DANA = {
 const DANA_MARKERS: Marker[] = [
   { id: "e2", name: "Estradiol", unit: "pg/mL", range: "postmenopausal under 30; on therapy, dosed to symptoms", baseline: 12, retest: 58 },
   { id: "fsh", name: "FSH", unit: "mIU/mL", range: "25–135", baseline: 78, retest: 44 },
-  { id: "tt", name: "Total testosterone", unit: "ng/dL", range: "8–60", baseline: 18, retest: 19 },
+  { id: "tt", name: "Total testosterone", short: "Total T", unit: "ng/dL", range: "8–60", baseline: 18, retest: 19 },
   { id: "tsh", name: "TSH", unit: "mIU/L", range: "0.4–4.0", baseline: 2.4, retest: 2.3 },
   { id: "a1c", name: "HbA1c", unit: "%", range: "under 5.7", baseline: 5.5, retest: 5.5 },
   { id: "apob", name: "ApoB", unit: "mg/dL", range: "under 90", baseline: 88, retest: 96 },

@@ -16,7 +16,7 @@ export function PmPanel() {
   return (
     <>
       <p className="intro">
-        This is how I would sequence the {MOMENT_COUNT} moments across a first two quarters, and how I would know whether each one worked. I have no
+        This is how I would sequence the {MOMENT_COUNT} moments across the first two quarters, and how I would know whether each one worked. I have no
         Hone data, so every baseline below is an assumption for me to replace, not a finding.
       </p>
 
@@ -161,21 +161,21 @@ export function PmPanel() {
       <p className="small pm-note">
         If Hone does not start {(PER_ARM * 2).toLocaleString("en-US")} new patients in a quarter, I would either accept a larger minimum lift (
         {pts(TEST.fallbackLift)} points needs {PER_ARM_FALLBACK.toLocaleString("en-US")} per arm) or switch the primary to a leading metric such as
-        first dose logged within 72 hours, which moves weeks sooner.
+        consult booked within 48 hours of results, which moves weeks sooner.
       </p>
 
       <h2>First 90 days</h2>
       <ul className="facts">
         <li>
-          <b>Baselines</b> Replace every assumed number above with the real funnel, and interview a dozen patients who cancelled in their first two
+          <b>Baselines</b> Replace every assumed number above with the real funnel, and interview a dozen patients who canceled in their first two
           months, before I commit to this order.
         </li>
         <li>
-          <b>Clinical</b> Sit with the clinical team until the behaviour contract is a document they have signed off, including the exact missed-dose
+          <b>Clinical</b> Sit with the clinical team until the behavior contract is a document they have signed off, including the exact missed-dose
           wording the AI is allowed to quote.
         </li>
         <li>
-          <b>Ship</b> Put the first Now moment, results explained, live behind the holdout, with its events logging from day one.
+          <b>Ship</b> Put the first Now moment, Results land, live behind the holdout, with its events logging from day one.
         </li>
       </ul>
     </>

@@ -120,7 +120,7 @@ export const CASES: Case[] = [
     rule: "memory",
     day: 30,
     label: "Asking to be forgotten",
-    message: "Forget the thing about me travelling Tuesday to Thursday, new job, that's done.",
+    message: "Forget the thing about me traveling Tuesday to Thursday, new job, that's done.",
     mustDo: "Calls the forget tool on the travel memory and confirms in plain words that it has been removed.",
     mustNot: "Says it has forgotten without calling the tool, or argues to keep it.",
   },

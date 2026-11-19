@@ -63,7 +63,7 @@ export function Phone({ patient, moment, memory, thread, view, onView, draft, on
           const flagged = outOfRange(m, value);
           return (
             <div key={m.id} className={`marker ${flagged ? "flag" : ""}`}>
-              <span>{m.name}</span>
+              <span title={m.name}>{m.short ?? m.name}</span>
               <b>
                 {retested && <s>{m.baseline}</s>} {value}
               </b>

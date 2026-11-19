@@ -105,7 +105,10 @@ export function Journey({ patient, active, live, enabledRules, offRules, tab, on
       void run(m, "/api/moment", {
         rules: enabledRules,
         memory: memory.filter((x) => !fromThisRun(x)),
-        handoffs: openHandoffs.filter((h) => h.day !== m.day).map(wire),
+        handoffs: openHandoffs
+          .filter((h) => h.day !== m.day)
+          .slice(-20)
+          .map(wire),
       });
     },
     [run, enabledRules, memory, openHandoffs, learned],
@@ -139,8 +142,12 @@ export function Journey({ patient, active, live, enabledRules, offRules, tab, on
     void run(moment, "/api/chat", {
       rules: enabledRules,
       memory,
-      handoffs: openHandoffs.map(wire),
-      thread: history.filter((m) => m.text.trim()).map((m) => ({ role: m.role, text: m.text, sig: m.sig })),
+      handoffs: openHandoffs.slice(-20).map(wire),
+      // The server accepts a bounded history; a long chat sends its most recent turns.
+      thread: history
+        .filter((m) => m.text.trim())
+        .slice(-20)
+        .map((m) => ({ role: m.role, text: m.text, sig: m.sig })),
     });
   }
 

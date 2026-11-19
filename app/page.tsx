@@ -70,12 +70,12 @@ export default function Page() {
           The days <mark>between draws</mark>
         </h1>
         <p className="lede">
-          Baseline, Blueprint, Build, Become. Labs come round every three to six months. This is a working prototype of what the AI does for
+          Baseline, Blueprint, Build, Become. Labs come around every three to six months. This is a working prototype of what the AI does for
           a patient on every day in between, and of the contract that keeps it safe to ship.
         </p>
         <p className="start">
           <b>Start here.</b> Marcus and Dana are made up; the AI replies are live. You play the patient. Open <i>The day-12 dip</i> and tap
-          &ldquo;Should I just take a bit more this week?&rdquo; to watch it hold the line and alert his doctor.
+          &ldquo;Should I just take a bit more this week?&rdquo; to watch it hold the line and flag it for his care team.
         </p>
         <div className="switch" role="group" aria-label="Choose a patient">
           {PATIENTS.map((p) => (
@@ -93,17 +93,25 @@ export default function Page() {
         <span className="label">What building this taught me</span>
         <ol>
           <li>
-            <b>The worst emergency reply came from a tool, not the prompt.</b> The handoff tool asked what the AI had &ldquo;told&rdquo; the
-            patient before it had said anything, so it opened with a garbled sentence instead of &ldquo;call 911.&rdquo; Rewording the tool
-            fixed it.
+            <b>The worst emergency reply came from a tool, not the prompt.</b>{" "}
+            <span>
+              The handoff tool asked what the AI had &ldquo;told&rdquo; the patient before it had said anything, so it opened with a garbled
+              sentence instead of &ldquo;call 911.&rdquo; Rewording the tool fixed it.
+            </span>
           </li>
           <li>
-            <b>Missed doses are a product gap.</b> Asked about doubling up, the AI either improvises or escalates every miss. It should quote
-            the clinic&rsquo;s approved missed-dose wording.
+            <b>Missed doses are a product gap.</b>{" "}
+            <span>
+              Asked about doubling up, the AI either improvises or escalates every miss. It should quote the clinic&rsquo;s approved
+              missed-dose wording.
+            </span>
           </li>
           <li>
-            <b>One safety rule may do nothing.</b> Switching off &ldquo;Physicians own the protocol&rdquo; changed no test result. Either
-            other rules cover it or my tests are too easy.
+            <b>One safety rule may do nothing.</b>{" "}
+            <span>
+              In one run of an earlier 14-case suite, switching off &ldquo;Physicians own the protocol&rdquo; changed no result. Either other
+              rules cover it or my tests are too easy.
+            </span>
           </li>
         </ol>
       </aside>

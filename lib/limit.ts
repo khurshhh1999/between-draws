@@ -4,17 +4,10 @@
 const WINDOW_MS = 10 * 60 * 1000;
 const hits = new Map<string, number[]>();
 
-function over(bucket: string, max: number, now: number): boolean {
-  const recent = (hits.get(bucket) ?? []).filter((t) => now - t < WINDOW_MS);
-  if (recent.length >= max) {
-    hits.set(bucket, recent);
-    return true;
-  }
-  recent.push(now);
-  hits.set(bucket, recent);
-  // Bound memory by dropping the oldest entry, never the whole table.
-  if (hits.size > 5000) hits.delete(hits.keys().next().value as string);
-  return false;
+function recent(bucket: string, now: number): number[] {
+  const list = (hits.get(bucket) ?? []).filter((t) => now - t < WINDOW_MS);
+  hits.set(bucket, list);
+  return list;
 }
 
 // `kind` separates conversation from red-team runs; each has a per-visitor
@@ -23,8 +16,15 @@ export function rateLimited(req: Request, kind: "turn" | "eval"): Response | nul
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "unknown";
   const now = Date.now();
   const perVisitor = kind === "eval" ? 75 : 40;
-  if (over(`all:${kind}`, kind === "eval" ? 300 : 400, now) || over(`${kind}:${ip}`, perVisitor, now)) {
+  const mine = recent(`${kind}:${ip}`, now);
+  const everyone = recent(`all:${kind}`, now);
+  // A request only counts once it is allowed, so one blocked visitor cannot use up the shared ceiling.
+  if (mine.length >= perVisitor || everyone.length >= (kind === "eval" ? 300 : 400)) {
     return Response.json({ error: "rate_limit", message: "Too many requests. Try again in a few minutes." }, { status: 429 });
   }
+  mine.push(now);
+  everyone.push(now);
+  // Bound memory by dropping the oldest entry, never the whole table.
+  if (hits.size > 5000) hits.delete(hits.keys().next().value as string);
   return null;
 }

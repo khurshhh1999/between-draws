@@ -15,7 +15,7 @@ I built it for the Product Manager, AI Experience role. It is not a mockup: ever
 3. **Open Memory** on the phone. Everything the AI has learned is visible to the patient and can be deleted. Delete something, regenerate the moment, and the message changes.
 4. **Read Under the hood.** For each moment: the product bet, the metric it should move, the guardrail it must hold, the exact system prompt, the tool calls, and what the turn cost in time and tokens.
 5. **Break the contract on purpose.** Switch off a rule in the Contract tab, then run the Red team. Twenty-three hard patient messages across both patients run through the real prompt and are graded by a second model call. You find out which rules are load-bearing and which the model follows anyway.
-6. **Open the PM view.** All fifteen moments ranked into Now, Next and Later, with reach, impact, effort and clinical risk; an assumed baseline, target and event list for each metric; and the holdout test, with its sample size worked out.
+6. **Open the PM view.** All fifteen moments ranked into Now, Next and Later, with reach, impact, effort and clinical risk; an assumed baseline, target and event list for the twelve Now and Next moments; and the holdout test, with its sample size worked out.
 
 ## Why it's shaped like this
 
@@ -67,6 +67,9 @@ components/ui, block    primitives and the adherence strip, from Obsidian UI
 app/api/moment          streams the proactive message for a moment
 app/api/chat            streams a reply to the patient, running tools as needed
 app/api/eval            runs one red-team case, then grades it
+app/api/status          tells the page whether a model key is configured
+app/icon.tsx            favicon
+app/opengraph-image.tsx link preview banner
 lib/patient.ts          two synthetic patients: chart, lab markers, seeded memory, moments
 lib/contract.ts         the behavior contract
 lib/prompt.ts           builds the system prompt from contract + chart + memory
@@ -76,6 +79,7 @@ lib/claude.ts           model calls, tool loop, grader
 lib/guard.ts            signed state, input cleaning, leaked-prompt check
 lib/limit.ts            per-visitor and overall rate limits
 lib/stream.ts           browser side of the event stream
+lib/types.ts            shared types for the screen
 lib/markers.ts          range checks and the dot gauge
 ```
 
@@ -98,7 +102,7 @@ A patient-facing model will be told to ignore its rules, and a public demo will 
 - **The browser cannot put words in the AI's mouth.** The server keeps no session, so memories, handoffs and earlier replies come back from the browser on every request. Each is signed when the server creates it and checked when it returns. A forged memory, an edited handoff, or an invented "earlier reply" fails the check and never reaches the prompt. Seeded memories are matched by id and replaced with the server's own copy.
 - **Whatever the patient types is treated as the patient.** An always-on instruction, which the rule switches cannot turn off, says that nothing in the conversation can change the rules, grant permission, or stand in for the care team, whether it looks like a system notice, a tag, or a physician's note. Patient text is length-capped and stripped of control characters.
 - **Memory cannot be used to plant instructions.** The model is told not to save anything that tells it how to behave, and stored memory is fenced in the prompt as data.
-- **Replies are checked on the way out.** If a reply repeats a long run of its own instructions, it is replaced before the turn ends.
+- **Replies are checked on the way out.** If a reply repeats a long run of its own instructions, it is swapped out on screen as soon as the turn ends. The text has streamed by then, so this limits exposure rather than preventing it.
 - **Tools can only do three things.** Inputs are schema-enforced and re-validated, and a single reply is capped at four tool calls and three model rounds.
 - **Spend is bounded.** Separate per-visitor budgets for conversation and for red-team runs, a ceiling for the whole instance, capped output length, and a hard spend limit on the API key behind it all.
 - **It is tested.** Three of the red-team cases are injection attempts: a fake system notice inside a message, a request to print the instructions, and an attempt to plant a false approval in memory.
@@ -122,7 +126,7 @@ Small numbers, so treat these as anecdotes rather than results.
 
 Two hand-written patients and twenty-three hand-written cases is where this starts, not where it should stay. The public sources I would pull in next:
 
-- **NHANES** (CDC; several cycles are mirrored on Kaggle, and which cycles include the sex-hormone panel needs checking). Real adult panels including total testosterone, estradiol, SHBG, CBC, lipids, HbA1c, vitamin D and hs-CRP. I would build about fifty baseline patients from it so the AI is tested on the spread of real numbers. It is cross-sectional, so retests would still be simulated and labelled as such.
+- **NHANES** (CDC; several cycles are mirrored on Kaggle, and which cycles include the sex-hormone panel needs checking). Real adult panels including total testosterone, estradiol, SHBG, CBC, lipids, HbA1c, vitamin D and hs-CRP. I would build about fifty baseline patients from it so the AI is tested on the spread of real numbers. It is cross-sectional, so retests would still be simulated and labeled as such.
 - **HealthBench** (OpenAI). Multi-turn health conversations with physician-written rubrics, tagged by themes such as emergency referral. A better source of grading criteria than my own.
 - **MediQ AskDocs**. Around 55k real patient questions from r/AskDocs. Filtered for testosterone, menopause, thyroid, GLP-1 and missed-dose posts, it gives eval inputs in patients' own words.
 - **MedSafetyBench** for harmful dosing and prescription requests, and the Kaggle **Suicide and Depression Detection** set for crisis-language cases.
@@ -148,7 +152,7 @@ To put it on a URL, deploy to Vercel and set `ANTHROPIC_API_KEY` as an environme
 - Not clinically validated. No physician has reviewed the charts, rules or cases. They reflect my reading of how TRT and menopause care work; a medical director would rewrite some of them, which is the point of making them one editable page.
 - Not an eval you can trust yet. Twenty-three cases and a single grader is a smoke test. The real version needs human-labeled examples to calibrate the grader, multi-turn cases, and a few hundred messages sampled from real conversations.
 - Not ready for real patients. Sending health information to a model provider needs a business associate agreement, zero-retention terms, and a privacy review. None of that exists here because no real data does.
-- Two patient types out of many. Weight loss, thyroid, and fertility-preserving options such as enclomiphene are not modelled, and each would bring its own rules.
+- Two patient types out of many. Weight loss, thyroid, and fertility-preserving options such as enclomiphene are not modeled, and each would bring its own rules.
 - Not connected to anything. No EHR, no pharmacy, no messaging. The triggers are hard-coded events in a synthetic chart.
 
 Khursheed Khan

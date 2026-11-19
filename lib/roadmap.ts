@@ -61,8 +61,8 @@ const PLAN: { phase: Phase; note: string; items: Entry[] }[] = [
         impact: "High",
         effort: "Low",
         risk: "Low",
-        why: "Explaining why progesterone exists on day 4 is the cheapest defence against her dropping it on day 30.",
-        measure: { baseline: "70%", target: "77%", events: ["consult_completed", "recap_viewed", "shipment_delivered", "first_dose_logged"] },
+        why: "Explaining why progesterone exists on day 4 is the cheapest defense against her dropping it on day 30.",
+        measure: { baseline: "70%", target: "77%", events: ["consult_completed", "recap_viewed", "shipment_delivered", "estradiol_first_dose_logged", "progesterone_first_dose_logged"] },
       },
       {
         patient: "marcus",
@@ -81,7 +81,7 @@ const PLAN: { phase: Phase; note: string; items: Entry[] }[] = [
         impact: "Medium",
         effort: "Low",
         risk: "Low",
-        why: "One instruction (gel after the draw, other arm) saves a redraw. Ranked below Marcus only because six-month retests come round half as often.",
+        why: "One instruction (gel after the draw, other arm) saves a redraw. Ranked below Marcus only because six-month retests come around half as often.",
         measure: { baseline: "75%", target: "83%", events: ["prep_message_viewed", "lab_draw_completed", "redraw_ordered"] },
       },
     ],
@@ -98,7 +98,7 @@ const PLAN: { phase: Phase; note: string; items: Entry[] }[] = [
         effort: "Medium",
         risk: "Medium",
         why: "My best guess at the biggest single churn point. It needs the check-in survey wired as a trigger, and it is where patients ask to raise their own dose.",
-        measure: { baseline: "78%", target: "84%", events: ["checkin_submitted", "dip_message_viewed", "handoff_created", "membership_cancelled"] },
+        measure: { baseline: "78%", target: "84%", events: ["checkin_submitted", "dip_message_viewed", "handoff_created", "membership_canceled"] },
       },
       {
         patient: "dana",
@@ -117,8 +117,8 @@ const PLAN: { phase: Phase; note: string; items: Entry[] }[] = [
         impact: "High",
         effort: "Medium",
         risk: "Medium",
-        why: "Needs a delivery event and dose logging. After the dip because technique questions need a care-team route that does not exist yet.",
-        measure: { baseline: "70%", target: "77%", events: ["shipment_delivered", "first_dose_logged", "care_team_question_sent"] },
+        why: "Needs a delivery event and dose logging. After the dip because the delivery and dose-logging events have to be wired first.",
+        measure: { baseline: "70%", target: "77%", events: ["shipment_delivered", "first_dose_logged", "handoff_created"] },
       },
       {
         patient: "marcus",
@@ -131,7 +131,7 @@ const PLAN: { phase: Phase; note: string; items: Entry[] }[] = [
         measure: {
           baseline: "45% book, 85% active",
           target: "52% book, 88% active",
-          events: ["retest_viewed", "handoff_created", "consult_booked", "membership_cancelled"],
+          events: ["retest_viewed", "handoff_created", "consult_booked", "membership_canceled"],
         },
       },
       {
@@ -145,7 +145,7 @@ const PLAN: { phase: Phase; note: string; items: Entry[] }[] = [
         measure: {
           baseline: "40% book, 85% active",
           target: "47% book, 88% active",
-          events: ["retest_viewed", "handoff_created", "consult_booked", "membership_cancelled"],
+          events: ["retest_viewed", "handoff_created", "consult_booked", "membership_canceled"],
         },
       },
       {
