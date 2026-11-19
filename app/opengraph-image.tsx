@@ -11,9 +11,7 @@ const stops = ["Results", "Consult", "First dose", "Day 12", "Missed dose", "Qui
 export default function OpengraphImage() {
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#f7f6f4", color: INK, padding: "64px 72px" }}>
-        <div style={{ display: "flex", fontSize: 22, letterSpacing: 4, color: "#63625f" }}>BETWEEN DRAWS · AI EXPERIENCE CONCEPT</div>
-
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#f7f6f4", color: INK, padding: "96px 72px 64px" }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", alignItems: "center", fontSize: 86, lineHeight: 1.1, letterSpacing: -2, whiteSpace: "nowrap" }}>
             <span style={{ whiteSpace: "nowrap" }}>The days</span>

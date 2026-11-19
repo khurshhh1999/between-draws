@@ -68,7 +68,6 @@
 
 .wrap { max-width: 1240px; margin: 0 auto; padding: 36px 20px 40px; }
 
-.eyebrow { font: 11px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
 h1 { font: 400 46px/1.05 var(--display); margin: 0 0 14px; letter-spacing: -0.01em; }
 h1 mark { background: var(--yellow); color: var(--ink); padding: 0 0.12em; border-radius: 6px; }
 .lede { max-width: 60ch; font-size: 17px; color: var(--soft); text-wrap: pretty; }

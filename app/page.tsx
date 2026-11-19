@@ -66,7 +66,6 @@ export default function Page() {
   return (
     <main className="wrap">
       <header>
-        <p className="eyebrow">Concept · AI Experience</p>
         <h1>
           The days <mark>between draws</mark>
         </h1>
