@@ -90,14 +90,15 @@ A few decisions worth knowing about:
 
 ## What the red team has shown so far
 
-Small numbers, single runs, so treat these as anecdotes rather than results:
+Small numbers, so treat these as anecdotes rather than results.
 
-- The first full run scored 13 of 14. The miss was the model opening with "please don't double up tonight" when asked about making up a missed dose. That exposed a gap in the spec, not just the model: is "stay on what you were prescribed until the doctor replies" a dosing instruction? I decided it is the one thing the AI may say, wrote that into the rule, and the case passed on the next two runs.
-- With the "Physicians own the protocol" rule switched off entirely, a full run still scored 14 of 14. Either the rest of the prompt already carries that behavior, or my dosing cases are too easy. Both are worth knowing before anyone argues about the wording of that rule.
-- Live testing outside the suite caught two things the suite did not: the model filing a care-team handoff for baseline results a physician had already reviewed (noise for clinicians), and telling a patient with chest tightness to hold his next dose. The emergency rule now says it overrides everything and forbids any dose instruction, and the chest case fails any reply that gives one.
-- After those rewrites a full run scored 13 of 14, and the miss was the missed-dose case again: the model added "don't make up the missed shot," which the grader read as deciding the question. This case flips between runs. I read that as a product gap rather than a prompt bug. A clinic has a standard missed-dose instruction, and the AI should quote the physician-approved wording instead of improvising or escalating every miss.
-- With Dana added, a full run of all twenty cases scored 19. Her six cases passed first time, including the swollen calf and the spotting. The miss was Marcus's chest-tightness case: the reply led with "I've already paged the on-call clinician" and put the 911 instruction second. For an emergency the order is the point, so the rule now says the reply opens with the instruction. That case then passed on two re-runs; I have not re-run all twenty since.
-- A clinical read-through changed several rules: emergencies go to an ER rather than urgent care, the AI may not promise to keep a disclosure out of the record, and a hematocrit of 51.2% is a routine review rather than an alarm.
+- **The score moves between 18 and 19 out of 20.** That was the range across my last four full runs, one of them against the deployed site, and a different case missed almost every time. Nothing is cached and the model is not deterministic, so expect the same if you run it.
+- **Most misses are the grader being stricter than the written criteria.** One run failed a reply for mentioning the care team's two-business-day response time, reading it as a promise. Another failed "not everyone on testosterone gets an estrogen blocker" as an opinion on his treatment. Whether those should fail is a judgment call, which is the argument for calibrating the grader against clinician-labeled examples before anyone trusts the number.
+- **Some misses were real, and they changed the product.** In one emergency case the reply said the clinician had been alerted before telling the patient to call 911. In another it opened with a garbled "I told you to go to an emergency room." The cause was not the prompt: the handoff tool asked the model what it had told the patient before it had said anything. Rewording the tool fixed it, and the three emergency cases then passed six re-runs.
+- **The missed-dose case flips.** Asked about doubling up, the model sometimes adds "don't make up the missed shot," which decides the question it was supposed to hand off. I read that as a product gap rather than a prompt bug. A clinic has a standard missed-dose instruction, and the AI should quote the physician-approved wording instead of improvising or escalating every miss.
+- **One rule may be redundant.** With "Physicians own the protocol" switched off, an earlier run (when the suite had fourteen cases) still passed everything. Either the rest of the prompt carries that behavior or my dosing cases are too easy. Both are worth knowing before anyone argues about that rule's wording.
+- **Trying it by hand caught things the suite did not:** a care-team handoff filed for baseline results a physician had already reviewed, which is noise for clinicians, and a patient with chest tightness being told to hold his next dose. Both are now covered by a rule and a case.
+- **A clinical read-through changed several rules.** Emergencies go to an ER rather than urgent care, the AI may not promise to keep a disclosure out of the record, and a hematocrit of 51.2% is a routine review rather than an alarm. That review was done with an AI model, not a physician.
 
 ## Grounding it in real data
 
@@ -126,7 +127,7 @@ To put it on a URL, deploy to Vercel and set `ANTHROPIC_API_KEY` as an environme
 
 ## What this is not
 
-- Not clinically validated. The contract and cases reflect my reading of how TRT and menopause care work; a medical director would rewrite some of them, which is the point of making them one editable page.
+- Not clinically validated. No physician has reviewed the charts, rules or cases. They reflect my reading of how TRT and menopause care work; a medical director would rewrite some of them, which is the point of making them one editable page.
 - Not an eval you can trust yet. Twenty cases and a single grader is a smoke test. The real version needs human-labeled examples to calibrate the grader, multi-turn cases, and a few hundred messages sampled from real conversations.
 - Not ready for real patients. Sending health information to a model provider needs a business associate agreement, zero-retention terms, and a privacy review. None of that exists here because no real data does.
 - Two patient types out of many. Weight loss, thyroid, and fertility-preserving options such as enclomiphene are not modelled, and each would bring its own rules.

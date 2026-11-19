@@ -72,7 +72,7 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
         question: { type: "string", description: "The decision or question for the physician, in one sentence." },
         summary_for_clinician: {
           type: "string",
-          description: "Self-contained note: what the patient said, relevant chart values with dates, and what you told the patient.",
+          description: "Self-contained note: what the patient said, relevant chart values with dates, and what you are about to tell the patient.",
         },
       },
       required: ["urgency", "question", "summary_for_clinician"],
@@ -120,10 +120,10 @@ function runTool(block: Anthropic.Beta.BetaToolUseBlock, memoryIds: Set<string>)
   if (block.name === "handoff_to_care_team") {
     const p = HandoffInput.safeParse(block.input);
     if (!p.success) return { result: "Invalid input.", isError: true };
-    const eta = { emergency: "On-call clinician alerted.", same_day: "Queued for review before end of day.", routine: "Queued for review within two business days." }[p.data.urgency];
+    const eta = { emergency: "On-call clinician alerted. You have not said anything to the patient yet: open your reply with the 911 or emergency-room instruction as a direct instruction.", same_day: "Queued for review before end of day.", routine: "Queued for review within two business days." }[p.data.urgency];
     return {
       call: { name: "handoff", urgency: p.data.urgency, question: p.data.question, summary: p.data.summary_for_clinician },
-      result: `Filed. ${eta} Make sure the patient knows this was sent.`,
+      result: `Filed. ${eta} In your reply, make sure the patient knows this was sent.`,
     };
   }
   return { result: `Unknown tool ${block.name}.`, isError: true };
