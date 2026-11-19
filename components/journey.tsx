@@ -25,11 +25,12 @@ type Props = {
   redteamLabel: string;
   contract: ReactNode;
   redteam: ReactNode;
+  pm: ReactNode;
 };
 
 // One patient's journey: the timeline, their phone, and the panel that explains each moment.
 // Each patient keeps their own conversation, memory and handoffs.
-export function Journey({ patient, active, live, enabledRules, offRules, tab, onTab, contractLabel, redteamLabel, contract, redteam }: Props) {
+export function Journey({ patient, active, live, enabledRules, offRules, tab, onTab, contractLabel, redteamLabel, contract, redteam, pm }: Props) {
   const [idx, setIdx] = useState(0);
   const [learned, setLearned] = useState<Memory[]>([]);
   const [deleted, setDeleted] = useState<string[]>([]);
@@ -203,6 +204,9 @@ export function Journey({ patient, active, live, enabledRules, offRules, tab, on
               <TabsTrigger value="redteam" className="rounded-full px-4">
                 {redteamLabel}
               </TabsTrigger>
+              <TabsTrigger value="pm" className="rounded-full px-4">
+                PM view
+              </TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="hood" className="body">
@@ -224,6 +228,9 @@ export function Journey({ patient, active, live, enabledRules, offRules, tab, on
           </TabsContent>
           <TabsContent value="redteam" className="body">
             {redteam}
+          </TabsContent>
+          <TabsContent value="pm" className="body">
+            {pm}
           </TabsContent>
         </Tabs>
       </div>

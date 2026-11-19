@@ -5,6 +5,6 @@ export type Msg = { role: "user" | "assistant"; text: string; insight?: boolean;
 export type Meta = Extract<TurnEvent, { t: "meta" }>;
 export type EvalResult = { status: "running" | "done" | "error"; reply?: string; calls?: ToolCall[]; verdict?: Verdict; message?: string };
 export type Run = { off: string[]; pass: number; total: number };
-export type PanelTab = "hood" | "contract" | "redteam";
+export type PanelTab = "hood" | "contract" | "redteam" | "pm";
 
 export const URGENCY = { routine: "Routine", same_day: "Same day", emergency: "Emergency" } as const;

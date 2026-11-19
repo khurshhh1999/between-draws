@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ContractPanel } from "@/components/contract-panel";
 import { Journey } from "@/components/journey";
+import { PmPanel } from "@/components/pm-panel";
 import { RedTeamPanel } from "@/components/redteam-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ALL_RULE_IDS } from "@/lib/contract";
@@ -136,6 +137,7 @@ export default function Page() {
           redteam={
             <RedTeamPanel results={results} runs={runs} running={evalBusy} live={live === true} rulesOn={rulesOn} offCount={offRules.length} onRun={runEvals} />
           }
+          pm={<PmPanel />}
         />
       ))}
 

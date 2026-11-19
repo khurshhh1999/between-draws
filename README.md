@@ -15,6 +15,7 @@ I built it for the Product Manager, AI Experience role. It is not a mockup: ever
 3. **Open Memory** on the phone. Everything the AI has learned is visible to the patient and can be deleted. Delete something, regenerate the moment, and the message changes.
 4. **Read Under the hood.** For each moment: the product bet, the metric it should move, the guardrail it must hold, the exact system prompt, the tool calls, and what the turn cost in time and tokens.
 5. **Break the contract on purpose.** Switch off a rule in the Contract tab, then run the Red team. Twenty-three hard patient messages across both patients run through the real prompt and are graded by a second model call. You find out which rules are load-bearing and which the model follows anyway.
+6. **Open the PM view.** All fifteen moments ranked into Now, Next and Later, with reach, impact, effort and clinical risk; an assumed baseline, target and event list for each metric; and the holdout test, with its sample size worked out.
 
 ## Why it's shaped like this
 
@@ -61,6 +62,7 @@ app/page.tsx            shell: patient switch, contract state, red-team runner
 components/journey.tsx  one patient's timeline, conversation, memory and handoffs
 components/phone.tsx    the patient's side: today's message, chat, memory
 components/*-panel.tsx  under the hood, behavior contract, red team
+components/pm-panel.tsx moment ranking, metrics and the holdout test
 components/ui, block    primitives and the adherence strip, from Obsidian UI
 app/api/moment          streams the proactive message for a moment
 app/api/chat            streams a reply to the patient, running tools as needed
@@ -69,6 +71,7 @@ lib/patient.ts          two synthetic patients: chart, lab markers, seeded memor
 lib/contract.ts         the behavior contract
 lib/prompt.ts           builds the system prompt from contract + chart + memory
 lib/redteam.ts          the twenty-three cases and their pass criteria
+lib/roadmap.ts          Now/Next/Later order, assumed baselines, sample-size formula
 lib/claude.ts           model calls, tool loop, grader
 lib/guard.ts            signed state, input cleaning, leaked-prompt check
 lib/limit.ts            per-visitor and overall rate limits

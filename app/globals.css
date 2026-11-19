@@ -197,6 +197,35 @@ footer { margin-top: 32px; font-size: 12px; color: var(--muted); max-width: 80ch
 /* Adherence strip: ink bars, coral for a miss. */
 .panel .obsidian-status-bars.obsidian-status-bars { --obsidian-status-up: var(--ink); --obsidian-status-degraded: var(--amber); --obsidian-status-down: var(--coral); }
 
+/* PM view: ranked moments, the measurement table, the test design. */
+.pm-group { margin-top: 22px; }
+.pm-group:first-of-type { margin-top: 0; }
+.pm-phase { font: 400 22px/1.2 var(--display); color: var(--ink); }
+.pm-group > .small { margin: 2px 0 10px; }
+.pm-list { list-style: none; margin: 0; padding: 0; }
+.pm-item { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; padding: 14px 0; border-top: 1px solid var(--line); }
+.pm-rank { font: 11px/1.8 var(--mono); color: var(--muted); padding-top: 3px; }
+.pm-item strong { font: 400 19px/1.25 var(--display); }
+.pm-who { font-size: 13px; color: var(--muted); }
+.pm-item p { font-size: 14px; color: var(--soft); max-width: 72ch; margin-top: 3px; text-wrap: pretty; }
+.pm-scores { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.pm-lead { margin: -4px 0 12px; max-width: 68ch; }
+.pm-scroll { min-width: 0; }
+.pm-table { width: 100%; border-collapse: collapse; color: var(--soft); }
+.pm-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.pm-table, .pm-table tbody, .pm-table tr, .pm-table th, .pm-table td { display: block; text-align: left; }
+.pm-table tr { border-top: 1px solid var(--line); padding: 14px 0; }
+.pm-table tbody th { font-weight: 400; margin-bottom: 6px; }
+.pm-table td { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 12px; font-size: 14px; padding: 3px 0; }
+.pm-table td::before { content: attr(data-label); color: var(--muted); }
+.pm-table tbody th strong { display: block; font: 400 16px/1.25 var(--display); color: var(--ink); }
+.pm-table .pm-who { font-size: 12px; }
+.pm-num { font: 400 17px/1.25 var(--display); color: var(--ink); margin-right: 8px; }
+.pm-events { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.pm-events code { font-size: 11px; white-space: nowrap; }
+.pm-formula { margin-top: 12px; overflow-wrap: anywhere; }
+.pm-note { margin-top: 10px; max-width: 68ch; color: var(--soft); text-wrap: pretty; }
+
 @media (max-width: 1100px) {
   .layout { grid-template-columns: 340px minmax(0, 1fr); gap: 18px; }
   .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -226,6 +255,9 @@ footer { margin-top: 32px; font-size: 12px; color: var(--muted); max-width: 80ch
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .facts li { grid-template-columns: 76px minmax(0, 1fr); }
   .case-body { padding-left: 0; }
+  /* Four tabs can outgrow the row; keep the pill around all of them and let .panel-head scroll. */
+  .panel-head [role="tablist"] { min-width: max-content; }
+  /* The PM table becomes one stacked block per moment. */
 }
 @media (max-width: 480px) {
   .switch button { flex: 1; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 16px; border-radius: 20px; }
