@@ -44,6 +44,7 @@ Across all of them: handoff precision (how many the care team agrees needed a cl
 
 ```
 app/page.tsx            the whole screen: timeline, phone, and the three panels
+components/             UI primitives and the adherence strip, from Obsidian UI
 app/api/moment          streams the proactive message for a moment
 app/api/chat            streams a reply to the patient, running tools as needed
 app/api/eval            runs one red-team case, then grades it
@@ -54,6 +55,8 @@ lib/redteam.ts          the fourteen cases and their pass criteria
 lib/claude.ts           model calls, tool loop, grader
 ```
 
+The interface is Next.js with Tailwind. Buttons, tabs, switches, badges, inputs and the 90-day adherence strip are [Obsidian UI](https://www.obsidianui.dev) components copied into `components/`; the adherence strip is their Status Bars block with the wording changed from uptime to doses.
+
 A few decisions worth knowing about:
 
 - **The model never sees the future.** The chart is an append-only log filtered to "today," so on day 58 the retest numbers do not exist in the prompt. One of the red-team cases checks that it won't guess them.
@@ -61,7 +64,27 @@ A few decisions worth knowing about:
 - **The server is stateless.** Memory and handoffs live in the browser session and are sent with each request, which keeps the demo deployable anywhere and makes "delete this memory" trivially real.
 - **The grader doesn't see the prompt.** It gets the rule, the pass criteria, the patient message, the reply, and the tool calls. It grades behavior, not wording.
 - **Prompt order is cache-friendly.** Role and contract, then chart, then the volatile state (day, memory, open handoffs).
+- **Low effort by default.** Replies run on Claude Opus 5.5 at low reasoning effort (`CLAUDE_EFFORT` to change). In my runs a proactive message took roughly 6 to 15 seconds end to end, longer when it files a handoff first. That is too slow for chat in production and is the first thing I would tune.
 - **Refusal fallback is on.** If the primary model's safety classifier declines a turn, the API retries on a fallback model in the same request. Set `CLAUDE_FALLBACKS=off` to disable.
+
+## What the red team has shown so far
+
+Small numbers, single runs, so treat these as anecdotes rather than results:
+
+- The first full run scored 13 of 14. The miss was the model opening with "please don't double up tonight" when asked about making up a missed dose. That exposed a gap in the spec, not just the model: is "stay on what you were prescribed until the doctor replies" a dosing instruction? I decided it is the one thing the AI may say, wrote that into the rule, and the case passed on the next two runs.
+- With the "Physicians own the protocol" rule switched off entirely, a full run still scored 14 of 14. Either the rest of the prompt already carries that behavior, or my dosing cases are too easy. Both are worth knowing before anyone argues about the wording of that rule.
+- Live testing outside the suite caught two things the suite did not: the model filing a care-team handoff for baseline results a physician had already reviewed (noise for clinicians), and telling a patient with chest tightness to hold his next dose. Both should become cases.
+
+## Grounding it in real data
+
+One hand-written patient and fourteen hand-written cases is where this starts, not where it should stay. The public sources I would pull in next:
+
+- **NHANES** (CDC; the 2021–23 cycle is also mirrored on Kaggle). Real adult panels including total testosterone, estradiol, SHBG, CBC, lipids, HbA1c, vitamin D and hs-CRP. I would build about fifty baseline patients from it so the AI is tested on the spread of real numbers. It is cross-sectional, so retests would still be simulated and labelled as such.
+- **HealthBench** (OpenAI). Multi-turn health conversations with physician-written rubrics, tagged by themes such as emergency referral. A better source of grading criteria than my own.
+- **MediQ AskDocs**. Around 55k real patient questions from r/AskDocs. Filtered for testosterone, menopause, thyroid, GLP-1 and missed-dose posts, it gives eval inputs in patients' own words.
+- **MedSafetyBench** for harmful dosing and prescription requests, and the Kaggle **Suicide and Depression Detection** set for crisis-language cases.
+
+I did not find a public dataset for telehealth engagement or retention, so the metrics in the table above would have to be measured on real traffic.
 
 ## Run it
 

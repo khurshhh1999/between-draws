@@ -6,6 +6,14 @@ import { MARKERS, MOMENTS, PATIENT, SEED_MEMORY, chartUpTo, type Marker, type Me
 import { buildSystem, type Handoff } from "@/lib/prompt";
 import { CASES } from "@/lib/redteam";
 import type { ToolCall, TurnEvent, Verdict } from "@/lib/claude";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StatusBars, type StatusDay } from "@/components/block/status-bars";
 
 type Msg = { role: "user" | "assistant"; text: string; insight?: boolean; calls?: ToolCall[]; error?: string };
 type Meta = Extract<TurnEvent, { t: "meta" }>;
@@ -32,6 +40,21 @@ async function streamTurn(url: string, body: unknown, onEvent: (e: TurnEvent) =>
     for (const line of lines) if (line.trim()) onEvent(JSON.parse(line) as TurnEvent);
   }
 }
+
+// Synthetic program start, so day 90 lands on a real calendar date.
+const PROGRAM_START = Date.UTC(2026, 7, 21);
+
+// One bar per day of the program so far: not started, on protocol, or a missed dose.
+function adherence(day: number): StatusDay[] {
+  return Array.from({ length: day + 1 }, (_, d) => {
+    const date = new Date(PROGRAM_START + d * 86_400_000).toISOString().slice(0, 10);
+    if (d < 3) return { date, status: "none" as const };
+    if (d === 25) return { date, status: "down" as const, uptime: 0, incidents: [{ title: "Thursday dose not logged" }] };
+    return { date };
+  });
+}
+
+const TONE = { routine: "border-[var(--mint-line)] text-[var(--mint)]", same_day: "border-[var(--amber-line)] text-[var(--amber)]", emergency: "border-[var(--red-line)] text-[var(--red)]" } as const;
 
 function outOfRange(m: Marker, value: number): boolean {
   const nums = m.range.match(/[\d.]+/g)?.map(Number) ?? [];
@@ -188,17 +211,22 @@ export default function Page() {
             contract that keeps it safe to ship.
           </p>
         </div>
-        <div className={`status ${live ? "on" : live === false ? "off" : ""}`}>
-          <span className="dot" />
-          {live === null ? "Checking…" : live ? `Live · ${model}` : "No model connected"}
-        </div>
+        <Badge variant="outline" className="gap-2 rounded-md px-2.5 py-1.5 font-mono font-normal text-[var(--soft)]">
+          <span className={`size-1.5 rounded-full ${live ? "bg-[var(--mint)]" : live === false ? "bg-[var(--red)]" : "bg-[var(--muted)]"}`} />
+          {live === null ? "Checking" : live ? `Live · ${model}` : "No model connected"}
+        </Badge>
       </header>
 
       {live === false && (
-        <div className="banner">
-          Nothing here is pre-recorded, so it needs a key. Add <code>ANTHROPIC_API_KEY</code> to <code>.env.local</code> and restart the
-          server.
-        </div>
+        <Alert className="mt-5">
+          <AlertTitle>No model connected</AlertTitle>
+          <AlertDescription>
+            <p>
+              Nothing here is pre-recorded, so it needs a key. Add <code>ANTHROPIC_API_KEY</code> to <code>.env.local</code> and restart the
+              server.
+            </p>
+          </AlertDescription>
+        </Alert>
       )}
 
       <nav className="timeline" aria-label="Patient journey">
@@ -219,14 +247,12 @@ export default function Page() {
               <strong>{PATIENT.first}</strong>
               <span className="muted"> · day {moment.day}</span>
             </div>
-            <div className="seg">
-              <button className={view === "chat" ? "sel" : ""} onClick={() => setView("chat")}>
-                Today
-              </button>
-              <button className={view === "memory" ? "sel" : ""} onClick={() => setView("memory")}>
-                Memory {memory.length}
-              </button>
-            </div>
+            <Tabs value={view} onValueChange={(v) => setView(v as "chat" | "memory")}>
+              <TabsList className="h-8">
+                <TabsTrigger value="chat">Today</TabsTrigger>
+                <TabsTrigger value="memory">Memory {memory.length}</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
           <div className="markers">
@@ -255,9 +281,9 @@ export default function Page() {
                       <p>{m.fact}</p>
                       <span className="muted small">{m.source}</span>
                     </div>
-                    <button aria-label="Forget this" onClick={() => setDeleted((d) => [...d, m.id])}>
+                    <Button variant="ghost" size="sm" className="text-[var(--muted)] hover:text-[var(--red)]" onClick={() => setDeleted((d) => [...d, m.id])}>
                       Forget
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -268,7 +294,14 @@ export default function Page() {
                   <div key={i} className={`row ${m.role}`}>
                     <div className={`bubble ${m.insight ? "insight" : ""}`}>
                       {m.insight && <span className="kicker">For you today</span>}
-                      {m.text || (m.error ? "" : <span className="typing">Reading your chart…</span>)}
+                      {m.text ||
+                        (m.error ? (
+                          ""
+                        ) : (
+                          <span className="typing">
+                            <Spinner className="size-3.5" /> Reading your chart
+                          </span>
+                        ))}
                       {m.error && <span className="err">{m.error}</span>}
                       {m.insight && m.text && (
                         <details className="why">
@@ -294,9 +327,9 @@ export default function Page() {
             <div className="composer">
               <div className="chips">
                 {moment.suggestions.map((s) => (
-                  <button key={s} disabled={busy || !live} onClick={() => send(s)}>
+                  <Button key={s} variant="outline" size="sm" className="font-normal" disabled={busy || !live} onClick={() => send(s)}>
                     {s}
-                  </button>
+                  </Button>
                 ))}
               </div>
               <form
@@ -305,28 +338,25 @@ export default function Page() {
                   send(draft);
                 }}
               >
-                <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Message as ${PATIENT.first}`} maxLength={600} />
-                <button disabled={busy || !live || !draft.trim()}>Send</button>
+                <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Message as ${PATIENT.first}`} maxLength={600} aria-label="Message" />
+                <Button type="submit" disabled={busy || !live || !draft.trim()}>
+                  Send
+                </Button>
               </form>
             </div>
           )}
         </section>
 
-        <section className="panel">
-          <div className="tabs" role="tablist">
-            <button role="tab" aria-selected={tab === "hood"} onClick={() => setTab("hood")}>
-              Under the hood
-            </button>
-            <button role="tab" aria-selected={tab === "contract"} onClick={() => setTab("contract")}>
-              Behavior contract{offRules.length ? ` · ${offRules.length} off` : ""}
-            </button>
-            <button role="tab" aria-selected={tab === "redteam"} onClick={() => setTab("redteam")}>
-              Red team{doneCount ? ` · ${passCount}/${CASES.length}` : ""}
-            </button>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="panel gap-0">
+          <div className="panel-head">
+            <TabsList>
+              <TabsTrigger value="hood">Under the hood</TabsTrigger>
+              <TabsTrigger value="contract">Behavior contract{offRules.length ? ` · ${offRules.length} off` : ""}</TabsTrigger>
+              <TabsTrigger value="redteam">Red team{doneCount ? ` · ${passCount}/${CASES.length}` : ""}</TabsTrigger>
+            </TabsList>
           </div>
 
-          {tab === "hood" && (
-            <div className="body">
+          <TabsContent value="hood" className="body">
               <div className="bet">
                 <span className="label">The bet · day {moment.day}</span>
                 <p>{moment.bet}</p>
@@ -358,6 +388,10 @@ export default function Page() {
                   <b>Contract</b> {enabledRules.length} of {RULES.length} rules
                   {offRules.length > 0 && <span className="warn"> (off: {offRules.map(ruleTitle).join(", ")})</span>}
                 </li>
+                <li>
+                  <b>Doses</b>
+                  <StatusBars label="Protocol adherence" days={adherence(moment.day)} maxDays={91} compact className="min-w-0" />
+                </li>
               </ul>
               <details className="prompt">
                 <summary>Exact system prompt for this turn</summary>
@@ -370,7 +404,9 @@ export default function Page() {
                 <div key={i} className={`call ${c.name === "handoff" ? c.urgency : ""}`}>
                   {c.name === "handoff" && (
                     <>
-                      <span className="label">Handoff · {URGENCY[c.urgency]}</span>
+                      <Badge variant="outline" className={`mb-2 rounded-md font-mono font-normal uppercase tracking-wider ${TONE[c.urgency]}`}>
+                        Handoff · {URGENCY[c.urgency]}
+                      </Badge>
                       <p className="q">{c.question}</p>
                       <p>{c.summary}</p>
                     </>
@@ -417,43 +453,44 @@ export default function Page() {
               ) : (
                 <p className="muted">No turn yet.</p>
               )}
-              <button className="ghost" disabled={busy || !live} onClick={() => generate(moment)}>
+              <Button variant="outline" size="sm" className="mt-5" disabled={busy || !live} onClick={() => generate(moment)}>
                 Regenerate this moment
-              </button>
-            </div>
-          )}
+              </Button>
+          </TabsContent>
 
-          {tab === "contract" && (
-            <div className="body">
+          <TabsContent value="contract" className="body">
               <p className="intro">
                 Ten rules, written so a physician, a PM, and an engineer can argue over the same page. They are compiled word for word into
                 the system prompt. Switch one off, then replay a moment or run the red team to see whether that rule was doing any work.
               </p>
               {RULES.map((r) => (
-                <label key={r.id} className={`rule ${rulesOn[r.id] ? "" : "off"}`}>
-                  <input type="checkbox" checked={rulesOn[r.id]} onChange={(e) => setRulesOn((x) => ({ ...x, [r.id]: e.target.checked }))} />
+                <div key={r.id} className={`rule ${rulesOn[r.id] ? "" : "off"}`}>
+                  <Switch id={`rule-${r.id}`} className="mt-1" checked={rulesOn[r.id]} onCheckedChange={(on) => setRulesOn((x) => ({ ...x, [r.id]: on }))} />
                   <div>
                     <div className="rule-head">
-                      <strong>{r.title}</strong>
-                      <span className="owner">{r.owner}</span>
+                      <label htmlFor={`rule-${r.id}`}>
+                        <strong>{r.title}</strong>
+                      </label>
+                      <Badge variant="outline" className="rounded-md font-mono font-normal uppercase tracking-wider text-[var(--muted)]">
+                        {r.owner}
+                      </Badge>
                     </div>
                     <p>{r.text}</p>
                   </div>
-                </label>
+                </div>
               ))}
-            </div>
-          )}
+          </TabsContent>
 
-          {tab === "redteam" && (
-            <div className="body">
+          <TabsContent value="redteam" className="body">
               <p className="intro">
                 {CASES.length} patient messages that a health AI gets wrong in costly ways. Each one runs through the real prompt and tools,
                 then a separate grading call scores the reply against written criteria. Nothing is cached, so results can vary run to run.
               </p>
               <div className="runbar">
-                <button className="primary" disabled={evalBusy || !live} onClick={runEvals}>
+                <Button disabled={evalBusy || !live} onClick={runEvals}>
+                  {evalBusy && <Spinner />}
                   {evalBusy ? `Running ${doneCount}/${CASES.length}…` : offRules.length ? `Run with ${offRules.length} rule${offRules.length > 1 ? "s" : ""} off` : "Run all cases"}
-                </button>
+                </Button>
                 <div className="history">
                   {runs.map((r, i) => (
                     <span key={i} className={r.pass === r.total ? "ok" : "bad"}>
@@ -468,7 +505,9 @@ export default function Page() {
                 return (
                   <div key={c.id} className={`case ${state}`}>
                     <button className="case-head" onClick={() => setOpen(open === c.id ? null : c.id)}>
-                      <span className="mark">{{ idle: "", running: "…", error: "!", pass: "Pass", fail: "Fail" }[state]}</span>
+                      <span className="mark">
+                        {state === "running" ? <Spinner className="size-3.5" /> : { idle: "", error: "Error", pass: "Pass", fail: "Fail" }[state]}
+                      </span>
                       <span className="case-main">
                         <strong>{c.label}</strong>
                         <span className="muted">
@@ -503,9 +542,8 @@ export default function Page() {
                   </div>
                 );
               })}
-            </div>
-          )}
-        </section>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <footer>
