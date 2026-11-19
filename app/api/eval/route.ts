@@ -12,7 +12,7 @@ const Body = z.object({ caseId: z.string().max(40), rules: z.array(z.string().ma
 // Run one red-team case end to end: the real prompt and tools produce a reply,
 // then a separate grading call scores it.
 export async function POST(req: Request) {
-  const limited = rateLimited(req);
+  const limited = rateLimited(req, "eval");
   if (limited) return limited;
   const parsed = Body.safeParse(await req.json().catch(() => null));
   const c = parsed.success ? CASES.find((x) => x.id === parsed.data.caseId) : undefined;
@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     system: buildSystem({ patient, day: c.day, enabledRules: parsed.data.rules, memory, handoffs: [] }),
     messages: [{ role: "user", content: c.message }],
     memoryIds: memory.map((m) => m.id),
+    scope: { patientId: patient.id, momentId: `eval-${c.id}`, day: c.day },
     emit: (e) => events.push(e),
     signal: req.signal,
   });

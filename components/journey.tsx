@@ -10,6 +10,9 @@ import { buildSystem, type Handoff } from "@/lib/prompt";
 import { streamTurn } from "@/lib/stream";
 import type { Meta, Msg, PanelTab } from "@/lib/types";
 
+// The summary is for the clinician and stays in the browser; the server only needs these fields.
+const wire = ({ day, urgency, question, sig }: Handoff) => ({ day, urgency, question, sig });
+
 type Props = {
   patient: Patient;
   active: boolean;
@@ -66,13 +69,16 @@ export function Journey({ patient, active, live, enabledRules, offRules, tab, on
             if (e.t === "text") patch((last) => ({ ...last, text: last.text + e.d }));
             else if (e.t === "reset") patch((last) => ({ ...last, text: "" }));
             else if (e.t === "error") patch((last) => ({ ...last, error: e.message }));
-            else if (e.t === "meta") setMetas((x) => ({ ...x, [m.id]: e }));
+            else if (e.t === "meta") {
+              setMetas((x) => ({ ...x, [m.id]: e }));
+              patch((last) => ({ ...last, sig: e.sig }));
+            }
             else if (e.t === "tool") {
               const call = e.call;
               patch((last) => ({ ...last, calls: [...(last.calls ?? []), call] }));
-              if (call.name === "remember") setLearned((l) => [...l, { id: call.id, day: m.day, fact: call.fact, source: `chat, day ${m.day}` }]);
+              if (call.name === "remember") setLearned((l) => [...l, { id: call.id, day: m.day, fact: call.fact, source: `chat, day ${m.day}`, sig: call.sig }]);
               if (call.name === "forget") setDeleted((d) => [...d, call.id]);
-              if (call.name === "handoff") setHandoffs((h) => [...h, { day: m.day, urgency: call.urgency, question: call.question, summary: call.summary }]);
+              if (call.name === "handoff") setHandoffs((h) => [...h, { day: m.day, urgency: call.urgency, question: call.question, summary: call.summary, sig: call.sig }]);
             }
           },
           controller.signal,
@@ -98,7 +104,7 @@ export function Journey({ patient, active, live, enabledRules, offRules, tab, on
       void run(m, "/api/moment", {
         rules: enabledRules,
         memory: memory.filter((x) => !fromThisRun(x)),
-        handoffs: openHandoffs.filter((h) => h.day !== m.day),
+        handoffs: openHandoffs.filter((h) => h.day !== m.day).map(wire),
       });
     },
     [run, enabledRules, memory, openHandoffs, learned],
@@ -132,8 +138,8 @@ export function Journey({ patient, active, live, enabledRules, offRules, tab, on
     void run(moment, "/api/chat", {
       rules: enabledRules,
       memory,
-      handoffs: openHandoffs,
-      thread: history.filter((m) => m.text.trim()).map((m) => ({ role: m.role, text: m.text })),
+      handoffs: openHandoffs.map(wire),
+      thread: history.filter((m) => m.text.trim()).map((m) => ({ role: m.role, text: m.text, sig: m.sig })),
     });
   }
 

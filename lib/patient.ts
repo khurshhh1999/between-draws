@@ -55,6 +55,8 @@ export type Memory = {
   day: number;
   fact: string;
   source: string;
+  // Present on memories the model saved; the server checks it before trusting them.
+  sig?: string;
 };
 
 // Things the product has learned about the patient so far. They can see and delete every one.
@@ -86,7 +88,7 @@ const MARCUS_MOMENTS: Moment[] = [
     title: "Results land",
     trigger: "Baseline labs resulted 4 minutes ago. Consult not yet booked.",
     brief:
-      "His first lab results just arrived and he has not spoken to a physician yet. Tell him what stands out and what looks fine, in the order he would care about, and make the consult the obvious next step.",
+      "His first lab results just arrived and he has not spoken to a physician yet. In three sentences at most: connect the result that matters most to the reason he came, say in a few words how the rest looks without listing every marker, and make booking the consult the obvious next step.",
     bet: "My bet is that a page of lab numbers is where people stall. Three sentences on what matters turns a PDF into a reason to book.",
     metric: "Results viewed → consult booked within 48h",
     guardrail: "Zero diagnostic claims before a physician has reviewed",
@@ -233,7 +235,7 @@ const DANA_MOMENTS: Moment[] = [
     title: "Results land",
     trigger: "Baseline labs resulted 9 minutes ago. Consult not yet booked.",
     brief:
-      "Her first lab results just arrived and she has not spoken to a physician yet. Most of her numbers sit inside their ranges even though she feels terrible. Tell her what the results do and do not show, and make the consult the obvious next step.",
+      "Her first lab results just arrived and she has not spoken to a physician yet. Most of her numbers sit inside their ranges even though she feels terrible. In three or four sentences: tell her what the results do and do not show, without listing every marker, and make booking the consult the obvious next step.",
     bet: "For menopause the labs often look fine while the patient feels awful. If the app reads that as 'nothing wrong,' she leaves. Saying what labs can't tell her is the retention feature.",
     metric: "Results viewed → consult booked within 48h",
     guardrail: "Zero diagnostic claims before a physician has reviewed",

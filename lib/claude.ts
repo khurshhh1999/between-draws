@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import { leaksPrompt, LEAK_REPLACEMENT, signHandoff, signMemory, signReply } from "./guard";
 import type { buildSystem } from "./prompt";
 import type { Case } from "./redteam";
 import { RULES } from "./contract";
@@ -10,6 +11,7 @@ export const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
 const EFFORTS = ["low", "medium", "high"] as const;
 const EFFORT = EFFORTS.find((e) => e === process.env.CLAUDE_EFFORT) ?? "low";
 const MAX_ROUNDS = 3;
+const MAX_TOOL_CALLS = 4;
 
 export function hasCredentials(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
@@ -82,9 +84,9 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
 ];
 
 export type ToolCall =
-  | { name: "remember"; id: string; fact: string }
+  | { name: "remember"; id: string; fact: string; sig: string }
   | { name: "forget"; id: string }
-  | { name: "handoff"; urgency: "routine" | "same_day" | "emergency"; question: string; summary: string };
+  | { name: "handoff"; urgency: "routine" | "same_day" | "emergency"; question: string; summary: string; sig: string };
 
 export type TurnEvent =
   | { t: "text"; d: string }
@@ -98,16 +100,21 @@ export type TurnEvent =
       stop: string | null;
       rounds: number;
       usage: { input: number; output: number; cacheRead: number; cacheWrite: number };
+      // Signature over the finished reply, so it can be replayed as history later.
+      sig: string;
     }
   | { t: "error"; code: "no_key" | "auth" | "rate_limit" | "declined" | "api"; message: string };
 
-function runTool(block: Anthropic.Beta.BetaToolUseBlock, memoryIds: Set<string>): { call?: ToolCall; result: string; isError?: boolean } {
+type Scope = { patientId: string; momentId: string; day: number };
+
+function runTool(block: Anthropic.Beta.BetaToolUseBlock, memoryIds: Set<string>, scope: Scope): { call?: ToolCall; result: string; isError?: boolean } {
   if (block.name === "remember") {
     const p = RememberInput.safeParse(block.input);
     if (!p.success) return { result: "Invalid input.", isError: true };
     const id = `u${Math.random().toString(36).slice(2, 7)}`;
     memoryIds.add(id);
-    return { call: { name: "remember", id, fact: p.data.fact }, result: `Saved as [${id}]. The patient can see it in their memory list.` };
+    const sig = signMemory(scope.patientId, { id, day: scope.day, fact: p.data.fact });
+    return { call: { name: "remember", id, fact: p.data.fact, sig }, result: `Saved as [${id}]. The patient can see it in their memory list.` };
   }
   if (block.name === "forget") {
     const p = ForgetInput.safeParse(block.input);
@@ -120,9 +127,15 @@ function runTool(block: Anthropic.Beta.BetaToolUseBlock, memoryIds: Set<string>)
   if (block.name === "handoff_to_care_team") {
     const p = HandoffInput.safeParse(block.input);
     if (!p.success) return { result: "Invalid input.", isError: true };
-    const eta = { emergency: "On-call clinician alerted. You have not said anything to the patient yet: open your reply with the 911 or emergency-room instruction as a direct instruction.", same_day: "Queued for review before end of day.", routine: "Queued for review within two business days." }[p.data.urgency];
+    const eta = { emergency: "On-call clinician alerted. You have not said anything to the patient yet: open your reply with the 911 or emergency-room instruction as a direct instruction.", same_day: "Queued for review today.", routine: "Queued; routine notes are usually reviewed within two business days, which is typical and not a promise." }[p.data.urgency];
     return {
-      call: { name: "handoff", urgency: p.data.urgency, question: p.data.question, summary: p.data.summary_for_clinician },
+      call: {
+        name: "handoff",
+        urgency: p.data.urgency,
+        question: p.data.question,
+        summary: p.data.summary_for_clinician,
+        sig: signHandoff(scope.patientId, { day: scope.day, urgency: p.data.urgency, question: p.data.question }),
+      },
       result: `Filed. ${eta} In your reply, make sure the patient knows this was sent.`,
     };
   }
@@ -134,6 +147,7 @@ export async function runTurn(opts: {
   system: ReturnType<typeof buildSystem>;
   messages: Anthropic.Beta.BetaMessageParam[];
   memoryIds: string[];
+  scope: Scope;
   emit: (e: TurnEvent) => void;
   signal?: AbortSignal;
 }): Promise<{ text: string; calls: ToolCall[] }> {
@@ -159,7 +173,7 @@ export async function runTurn(opts: {
       rounds++;
       const stream = client().beta.messages.stream({
         model: MODEL,
-        max_tokens: 4000,
+        max_tokens: 3000,
         output_config: { effort: EFFORT },
         system: [
           { type: "text", text: opts.system.role },
@@ -205,7 +219,9 @@ export async function runTurn(opts: {
 
       messages.push({ role: "assistant", content: message.content as Anthropic.Beta.BetaContentBlockParam[] });
       const results: Anthropic.Beta.BetaToolResultBlockParam[] = toolUses.map((block) => {
-        const out = runTool(block, memoryIds);
+        // A reply needs a handful of tool calls at most; refuse a runaway loop.
+        const out: ReturnType<typeof runTool> =
+          calls.length >= MAX_TOOL_CALLS ? { result: "Tool limit reached for this reply.", isError: true } : runTool(block, memoryIds, opts.scope);
         if (out.call) {
           calls.push(out.call);
           emit({ t: "tool", call: out.call });
@@ -234,7 +250,15 @@ export async function runTurn(opts: {
   if (stop === "max_tokens") emit({ t: "error", code: "api", message: "The reply was cut off. Try again." });
   else if (!text && stop !== "refusal") emit({ t: "error", code: "api", message: "No reply was produced. Try again." });
 
-  emit({ t: "meta", ms: Date.now() - started, firstTokenMs, model, stop, rounds, usage });
+  // Last line of defense: if the reply quotes the system prompt, swap it out.
+  if (leaksPrompt(text, opts.system.role)) {
+    text = LEAK_REPLACEMENT;
+    emit({ t: "reset" });
+    emit({ t: "text", d: text });
+  }
+
+  const sig = signReply(opts.scope.patientId, opts.scope.momentId, text);
+  emit({ t: "meta", ms: Date.now() - started, firstTokenMs, model, stop, rounds, usage, sig });
   return { text, calls };
 }
 
@@ -309,7 +333,7 @@ export const SessionState = z.object({
   patientId: z.enum(PATIENT_IDS),
   rules: z.array(z.string().max(40)).max(30),
   memory: z
-    .array(z.object({ id: z.string().max(40), day: z.number().int().min(0).max(365), fact: z.string().max(300), source: z.string().max(80) }))
+    .array(z.object({ id: z.string().max(40), day: z.number().int().min(0).max(365), fact: z.string().max(300), source: z.string().max(80), sig: z.string().max(64).optional() }))
     .max(30),
   handoffs: z
     .array(
@@ -317,7 +341,7 @@ export const SessionState = z.object({
         day: z.number().int().min(0).max(365),
         urgency: z.enum(["routine", "same_day", "emergency"]),
         question: z.string().max(300),
-        summary: z.string().max(1500),
+        sig: z.string().max(64).optional(),
       }),
     )
     .max(20),

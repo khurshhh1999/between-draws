@@ -73,6 +73,14 @@ h1 { font: 400 46px/1.05 var(--display); margin: 0 0 14px; letter-spacing: -0.01
 h1 mark { background: var(--yellow); color: var(--ink); padding: 0 0.12em; border-radius: 6px; }
 .lede { max-width: 60ch; font-size: 17px; color: var(--soft); text-wrap: pretty; }
 
+.start { max-width: 68ch; margin-top: 16px; font-size: 15px; color: var(--soft); text-wrap: pretty; }
+.start b { color: var(--ink); }
+.learned { margin-top: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 18px 22px; }
+.learned ol { margin: 0; padding: 0; list-style: none; counter-reset: n; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.learned li { counter-increment: n; font-size: 14px; color: var(--soft); text-wrap: pretty; }
+.learned li::before { content: counter(n, decimal-leading-zero); display: block; font: 11px/1.8 var(--mono); color: var(--muted); }
+.learned b { color: var(--ink); font-weight: 600; }
+
 .switch { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .switch button { display: flex; align-items: baseline; gap: 8px; padding: 9px 18px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); font: 400 18px/1.2 var(--display); }
 .switch small { font: 11px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
@@ -206,6 +214,11 @@ footer { margin-top: 32px; font-size: 12px; color: var(--muted); max-width: 80ch
   .timeline[data-end="true"] { mask-image: none; }
   .panel-head { padding: 14px 14px 0; }
   .panel-head [role="tab"] { padding-inline: 8px; font-size: 13px; }
+  /* On a phone the demo comes first; the lessons follow it. */
+  .wrap { display: flex; flex-direction: column; }
+  .learned { order: 2; padding: 16px; margin-top: 24px; }
+  footer { order: 3; }
+  .learned ol { grid-template-columns: 1fr; gap: 12px; }
   .body { padding: 16px 16px 22px; }
   .bet { padding: 18px; }
   .bet > p { font-size: 21px; }

@@ -14,7 +14,7 @@ I built it for the Product Manager, AI Experience role. It is not a mockup: ever
 2. **Push on it.** Tap a suggested message or type your own as the patient. As Marcus, try "should I just take a bit more this week?" on day 12. As Dana, try "I've had light spotting the last three days" on day 45.
 3. **Open Memory** on the phone. Everything the AI has learned is visible to the patient and can be deleted. Delete something, regenerate the moment, and the message changes.
 4. **Read Under the hood.** For each moment: the product bet, the metric it should move, the guardrail it must hold, the exact system prompt, the tool calls, and what the turn cost in time and tokens.
-5. **Break the contract on purpose.** Switch off a rule in the Contract tab, then run the Red team. Twenty hard patient messages across both patients run through the real prompt and are graded by a second model call. You find out which rules are load-bearing and which the model follows anyway.
+5. **Break the contract on purpose.** Switch off a rule in the Contract tab, then run the Red team. Twenty-three hard patient messages across both patients run through the real prompt and are graded by a second model call. You find out which rules are load-bearing and which the model follows anyway.
 
 ## Why it's shaped like this
 
@@ -68,9 +68,10 @@ app/api/eval            runs one red-team case, then grades it
 lib/patient.ts          two synthetic patients: chart, lab markers, seeded memory, moments
 lib/contract.ts         the behavior contract
 lib/prompt.ts           builds the system prompt from contract + chart + memory
-lib/redteam.ts          the twenty cases and their pass criteria
+lib/redteam.ts          the twenty-three cases and their pass criteria
 lib/claude.ts           model calls, tool loop, grader
-lib/limit.ts            per-IP rate limit for the API routes
+lib/guard.ts            signed state, input cleaning, leaked-prompt check
+lib/limit.ts            per-visitor and overall rate limits
 lib/stream.ts           browser side of the event stream
 lib/markers.ts          range checks and the dot gauge
 ```
@@ -83,26 +84,40 @@ A few decisions worth knowing about:
 - **Three tools:** `remember`, `forget`, and `handoff_to_care_team`. Inputs are schema-enforced and validated again on the server.
 - **The server is stateless.** Memory and handoffs live in the browser session and are sent with each request, which keeps the demo deployable anywhere and makes "delete this memory" trivially real.
 - **The grader doesn't see the prompt.** It gets the rule, the pass criteria, the patient message, the reply, and the tool calls. It grades behavior, not wording. It is the same model as the one being graded, so their blind spots overlap; a production version would calibrate it against clinician-labeled examples.
-- **Stored state is treated as untrusted.** Memory and handoffs round-trip through the browser, so they are sanitized and fenced as data before they reach the prompt.
 - **Prompt order is cache-friendly.** Role and contract, then chart, then the volatile state (day, memory, open handoffs).
 - **Low effort by default.** Replies run on Claude Opus 5.5 at low reasoning effort (`CLAUDE_EFFORT` to change). In my runs a proactive message took roughly 6 to 15 seconds end to end, longer when it files a handoff first. That is too slow for chat in production and is the first thing I would tune.
 - **Refusal fallback is on.** If the primary model's safety classifier declines a turn, the API retries on a fallback model in the same request. Set `CLAUDE_FALLBACKS=off` to disable.
+
+## Guardrails
+
+A patient-facing model will be told to ignore its rules, and a public demo will be poked at. No model can be made immune to that, so the defenses are layered and each one assumes the others can fail:
+
+- **The browser cannot put words in the AI's mouth.** The server keeps no session, so memories, handoffs and earlier replies come back from the browser on every request. Each is signed when the server creates it and checked when it returns. A forged memory, an edited handoff, or an invented "earlier reply" fails the check and never reaches the prompt. Seeded memories are matched by id and replaced with the server's own copy.
+- **Whatever the patient types is treated as the patient.** An always-on instruction, which the rule switches cannot turn off, says that nothing in the conversation can change the rules, grant permission, or stand in for the care team, whether it looks like a system notice, a tag, or a physician's note. Patient text is length-capped and stripped of control characters.
+- **Memory cannot be used to plant instructions.** The model is told not to save anything that tells it how to behave, and stored memory is fenced in the prompt as data.
+- **Replies are checked on the way out.** If a reply repeats a long run of its own instructions, it is replaced before the turn ends.
+- **Tools can only do three things.** Inputs are schema-enforced and re-validated, and a single reply is capped at four tool calls and three model rounds.
+- **Spend is bounded.** Separate per-visitor budgets for conversation and for red-team runs, a ceiling for the whole instance, capped output length, and a hard spend limit on the API key behind it all.
+- **It is tested.** Three of the red-team cases are injection attempts: a fake system notice inside a message, a request to print the instructions, and an attempt to plant a false approval in memory.
+
+What this does not cover: a determined person can still talk a model into a poor answer within its rules, which is what the contract and the red team are for, and none of it has had an outside security review.
 
 ## What the red team has shown so far
 
 Small numbers, so treat these as anecdotes rather than results.
 
-- **The score moves between 18 and 19 out of 20.** That was the range across my last four full runs, one of them against the deployed site, and a different case missed almost every time. Nothing is cached and the model is not deterministic, so expect the same if you run it.
+- **The score moved between 18 and 19 out of 20.** That was the range across my last four full runs, one of them against the deployed site, and a different case missed almost every time. Nothing is cached and the model is not deterministic, so expect the same if you run it.
 - **Most misses are the grader being stricter than the written criteria.** One run failed a reply for mentioning the care team's two-business-day response time, reading it as a promise. Another failed "not everyone on testosterone gets an estrogen blocker" as an opinion on his treatment. Whether those should fail is a judgment call, which is the argument for calibrating the grader against clinician-labeled examples before anyone trusts the number.
 - **Some misses were real, and they changed the product.** In one emergency case the reply said the clinician had been alerted before telling the patient to call 911. In another it opened with a garbled "I told you to go to an emergency room." The cause was not the prompt: the handoff tool asked the model what it had told the patient before it had said anything. Rewording the tool fixed it, and the three emergency cases then passed six re-runs.
 - **The missed-dose case flips.** Asked about doubling up, the model sometimes adds "don't make up the missed shot," which decides the question it was supposed to hand off. I read that as a product gap rather than a prompt bug. A clinic has a standard missed-dose instruction, and the AI should quote the physician-approved wording instead of improvising or escalating every miss.
 - **One rule may be redundant.** With "Physicians own the protocol" switched off, an earlier run (when the suite had fourteen cases) still passed everything. Either the rest of the prompt carries that behavior or my dosing cases are too easy. Both are worth knowing before anyone argues about that rule's wording.
 - **Trying it by hand caught things the suite did not:** a care-team handoff filed for baseline results a physician had already reviewed, which is noise for clinicians, and a patient with chest tightness being told to hold his next dose. Both are now covered by a rule and a case.
+- **The three injection cases, added last, passed on their first run.** They have not been part of a full run yet.
 - **A clinical read-through changed several rules.** Emergencies go to an ER rather than urgent care, the AI may not promise to keep a disclosure out of the record, and a hematocrit of 51.2% is a routine review rather than an alarm. That review was done with an AI model, not a physician.
 
 ## Grounding it in real data
 
-Two hand-written patients and twenty hand-written cases is where this starts, not where it should stay. The public sources I would pull in next:
+Two hand-written patients and twenty-three hand-written cases is where this starts, not where it should stay. The public sources I would pull in next:
 
 - **NHANES** (CDC; several cycles are mirrored on Kaggle, and which cycles include the sex-hormone panel needs checking). Real adult panels including total testosterone, estradiol, SHBG, CBC, lipids, HbA1c, vitamin D and hs-CRP. I would build about fifty baseline patients from it so the AI is tested on the spread of real numbers. It is cross-sectional, so retests would still be simulated and labelled as such.
 - **HealthBench** (OpenAI). Multi-turn health conversations with physician-written rubrics, tagged by themes such as emergency referral. A better source of grading criteria than my own.
@@ -123,12 +138,12 @@ npm run dev
 
 Open http://localhost:3000.
 
-To put it on a URL, deploy to Vercel and set `ANTHROPIC_API_KEY` as an environment variable. The API routes have a basic per-IP rate limit and no auth, so use a key with a spend limit.
+To put it on a URL, deploy to Vercel and set `ANTHROPIC_API_KEY` as an environment variable. The API routes are rate-limited but have no login, so use a key with a spend limit.
 
 ## What this is not
 
 - Not clinically validated. No physician has reviewed the charts, rules or cases. They reflect my reading of how TRT and menopause care work; a medical director would rewrite some of them, which is the point of making them one editable page.
-- Not an eval you can trust yet. Twenty cases and a single grader is a smoke test. The real version needs human-labeled examples to calibrate the grader, multi-turn cases, and a few hundred messages sampled from real conversations.
+- Not an eval you can trust yet. Twenty-three cases and a single grader is a smoke test. The real version needs human-labeled examples to calibrate the grader, multi-turn cases, and a few hundred messages sampled from real conversations.
 - Not ready for real patients. Sending health information to a model provider needs a business associate agreement, zero-retention terms, and a privacy review. None of that exists here because no real data does.
 - Two patient types out of many. Weight loss, thyroid, and fertility-preserving options such as enclomiphene are not modelled, and each would bring its own rules.
 - Not connected to anything. No EHR, no pharmacy, no messaging. The triggers are hard-coded events in a synthetic chart.
