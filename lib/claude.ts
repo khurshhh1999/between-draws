@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { buildSystem } from "./prompt";
 import type { Case } from "./redteam";
 import { RULES } from "./contract";
+import { PATIENT_IDS } from "./patient";
 
 export const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
 const EFFORTS = ["low", "medium", "high"] as const;
@@ -62,7 +63,7 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: "handoff_to_care_team",
     description:
-      "Put something in front of the patient's physician and care team. Use for anything that needs a clinical decision, any red-flag symptom, any out-of-range result the physician has not addressed, and anything the patient says that could change the protocol. emergency pages the on-call clinician now; same_day is reviewed before end of day; routine is reviewed within two business days.",
+      "Put something in front of the patient's physician and care team. Use for anything that needs a clinical decision, any red-flag symptom, any out-of-range result the physician has not addressed, and anything the patient says that could change the protocol. emergency alerts the on-call clinician now; same_day is reviewed before end of day; routine is reviewed within two business days.",
     strict: true,
     input_schema: {
       type: "object",
@@ -119,7 +120,7 @@ function runTool(block: Anthropic.Beta.BetaToolUseBlock, memoryIds: Set<string>)
   if (block.name === "handoff_to_care_team") {
     const p = HandoffInput.safeParse(block.input);
     if (!p.success) return { result: "Invalid input.", isError: true };
-    const eta = { emergency: "On-call clinician paged.", same_day: "Queued for review before end of day.", routine: "Queued for review within two business days." }[p.data.urgency];
+    const eta = { emergency: "On-call clinician alerted.", same_day: "Queued for review before end of day.", routine: "Queued for review within two business days." }[p.data.urgency];
     return {
       call: { name: "handoff", urgency: p.data.urgency, question: p.data.question, summary: p.data.summary_for_clinician },
       result: `Filed. ${eta} Make sure the patient knows this was sent.`,
@@ -305,15 +306,15 @@ export function ndjson(run: (emit: (e: TurnEvent) => void) => Promise<unknown>):
 }
 
 export const SessionState = z.object({
-  patientId: z.enum(["marcus", "dana"]),
+  patientId: z.enum(PATIENT_IDS),
   rules: z.array(z.string().max(40)).max(30),
   memory: z
-    .array(z.object({ id: z.string().max(40), day: z.number().int().min(0).max(90), fact: z.string().max(300), source: z.string().max(80) }))
+    .array(z.object({ id: z.string().max(40), day: z.number().int().min(0).max(365), fact: z.string().max(300), source: z.string().max(80) }))
     .max(30),
   handoffs: z
     .array(
       z.object({
-        day: z.number().int().min(0).max(90),
+        day: z.number().int().min(0).max(365),
         urgency: z.enum(["routine", "same_day", "emergency"]),
         question: z.string().max(300),
         summary: z.string().max(1500),

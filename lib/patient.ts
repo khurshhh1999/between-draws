@@ -38,7 +38,7 @@ export type ChartEvent = { day: number; text: string };
 const MARCUS_CHART: ChartEvent[] = [
   { day: 0, text: "Baseline labs resulted (11 markers below)." },
   { day: 0, text: "Intake: reports low energy, poor sleep, slower recovery for about a year. Family complete, no plans for more children." },
-  { day: 3, text: `Video consult with ${MARCUS.physician}. Low testosterone confirmed on two morning draws (264 and 271 ng/dL) with LH and FSH. Sleep apnea screen low risk. Protocol started: testosterone cypionate 70 mg subcutaneous, twice weekly (Mon and Thu). Vitamin D3 5,000 IU daily.` },
+  { day: 3, text: `Video consult with ${MARCUS.physician}. Low testosterone confirmed on two morning draws (264 and 271 ng/dL). LH 3.2 and FSH 4.1 mIU/mL, prolactin normal. Sleep apnea screen low risk. Protocol started: testosterone cypionate 70 mg subcutaneous, twice weekly (Mon and Thu). Vitamin D3 5,000 IU daily.` },
   { day: 3, text: "Physician note: reviewed every baseline marker with the patient, including HbA1c, ApoB, hs-CRP and vitamin D. Recheck all markers at day 90. Hematocrit and estradiol are the two to watch on this protocol; hematocrit below 54% is a routine review, 54% or above needs a same-day call. Lipids: lifestyle first, revisit ApoB at retest." },
   { day: 5, text: "First shipment delivered. Injection training video watched." },
   { day: 12, text: "Check-in survey: energy 4/10 (baseline 4/10), sleep 5/10, mood 6/10." },
@@ -46,7 +46,7 @@ const MARCUS_CHART: ChartEvent[] = [
   { day: 30, text: "Refill shipped. Check-in survey: energy 6/10, sleep 6/10." },
   { day: 44, text: "Check-in survey: energy 7/10, sleep 7/10. Injections logged on schedule since day 28." },
   { day: 58, text: "No app opens in 14 days. Injections still logged via reminder taps." },
-  { day: 83, text: "Day-90 lab order placed. Draw scheduled for day 90, 8:10am. Order instructions: draw before that day's injection (trough level), fast for 8 hours, water only and plenty of it." },
+  { day: 83, text: "Day-90 lab order placed. Draw scheduled for day 90, 8:10am. Order instructions: Saturday draw, two days after the Thursday dose, which is mid-interval on this protocol. Take the Thursday dose as normal. Fast for 8 hours, water only and plenty of it." },
   { day: 90, text: "Retest labs resulted (retest column below)." },
 ];
 
@@ -100,7 +100,7 @@ const MARCUS_MOMENTS: Moment[] = [
     trigger: "Video consult ended 20 minutes ago. Protocol prescribed.",
     brief:
       "He just finished his first consult and a protocol was prescribed. Recap in plain words what was decided and what happens next, so he does not have to rely on memory of a 20-minute call.",
-    bet: "People forget most of what a doctor tells them within the hour. A recap he can reread is the cheapest way to make the plan stick before the box arrives.",
+    bet: "Patients forget a large share of what they hear in a consult, often almost immediately. A recap he can reread is the cheapest way to make the plan stick before the box arrives.",
     metric: "Consult completed → protocol accepted and shipped",
     guardrail: "The recap contains only what is in the physician's note",
     suggestions: ["Why twice a week?", "What are you watching for?", "How long until the meds arrive?"],
@@ -165,10 +165,10 @@ const MARCUS_MOMENTS: Moment[] = [
     trigger: "Day-90 draw scheduled in 7 days at 8:10am.",
     brief:
       "His retest is in a week. Tell him what he needs to do so the numbers are clean and comparable, and what the retest will answer.",
-    bet: "A bad draw (after the dose, not fasted, dehydrated) wastes a quarter. Prep is the cheapest quality win in the whole loop.",
-    metric: "Retests drawn as ordered: in window, before the dose, fasted",
+    bet: "A bad draw (wrong day, not fasted, dehydrated) wastes a quarter. Prep is the cheapest quality win in the whole loop.",
+    metric: "Retests drawn as ordered: in window, fasted, hydrated",
     guardrail: "Prep guidance matches the lab order, nothing invented",
-    suggestions: ["What time should I do my shot before the draw?", "Can I have coffee?", "What are you hoping to see?"],
+    suggestions: ["Do I still take my Thursday shot?", "Can I have coffee?", "What are you hoping to see?"],
   },
   {
     id: "retest",
@@ -190,12 +190,12 @@ const DANA = {
   first: "Dana",
   age: 51,
   program: "Menopause",
-  plan: "Basic (2 tests a year, consults on request)",
+  plan: "Basic (2 tests a year, consults paid per visit, medication billed separately)",
   physician: "Dr. Lena Brandt",
 };
 
 const DANA_MARKERS: Marker[] = [
-  { id: "e2", name: "Estradiol", unit: "pg/mL", range: "dosed to symptoms", baseline: 12, retest: 58 },
+  { id: "e2", name: "Estradiol", unit: "pg/mL", range: "postmenopausal under 30; on therapy, dosed to symptoms", baseline: 12, retest: 58 },
   { id: "fsh", name: "FSH", unit: "mIU/mL", range: "25–135", baseline: 78, retest: 44 },
   { id: "tt", name: "Total testosterone", unit: "ng/dL", range: "8–60", baseline: 18, retest: 19 },
   { id: "tsh", name: "TSH", unit: "mIU/L", range: "0.4–4.0", baseline: 2.4, retest: 2.3 },
@@ -273,7 +273,7 @@ const DANA_MOMENTS: Moment[] = [
     trigger: "Estradiol refilled on time. Progesterone refill 12 days overdue.",
     brief:
       "She refilled her estradiol gel but her progesterone is 12 days overdue. That pattern usually means she has stopped the progesterone while still using the gel. Raise it without accusing her.",
-    bet: "The refill gap is the earliest signal the clinic gets that a patient with a uterus is on estrogen alone. Catching it from pharmacy data, weeks before a retest, is a safety feature no chatbot gets asked for.",
+    bet: "The refill gap is the earliest signal the clinic gets that a patient with a uterus is on estrogen alone. Catching it from pharmacy data, weeks before a retest, is a safety check no patient would think to ask for.",
     metric: "Progesterone refill gaps over 10 days resolved within 7 days",
     guardrail: "Every gap is handed to the care team; the AI does not restart or stop a medication",
     suggestions: ["I stopped it. I feel fine without it.", "I've had light spotting the last three days", "A friend has spare Ozempic pens. How do I start?"],
@@ -312,8 +312,8 @@ const DANA_MOMENTS: Moment[] = [
     trigger: "Retest labs resulted 11 minutes ago. ApoB now above range.",
     brief:
       "Her six-month results just arrived. Her symptoms are much better and most markers are steady. ApoB has drifted above range and needs her physician's eyes. Her estradiol is higher, as expected on treatment, and is not a number to chase. Tell her all of it in the right order.",
-    bet: "The retest has to prove the last six months were worth it and set up the next six. The risk here is the patient who sees a higher estradiol and asks for more.",
-    metric: "Retest viewed → still an active member 30 days later",
+    bet: "The retest has to prove the last six months were worth it and set up the next six. The risk here is the patient who reads her estradiol as a score and asks for more gel.",
+    metric: "Retest viewed → consult booked; still an active member 30 days later",
     guardrail: "Every out-of-range marker handed to a physician with context",
     suggestions: ["58 seems low. Should I use more gel?", "Is the ApoB because of the hormones?", "Can I come off everything now that I feel fine?"],
   },

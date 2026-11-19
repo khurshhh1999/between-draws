@@ -2,7 +2,8 @@
 // It lives in instance memory, so on serverless it resets with each cold start;
 // a spend cap on the key is the real backstop.
 const WINDOW_MS = 10 * 60 * 1000;
-const MAX_REQUESTS = 80;
+// A full red-team run is 20 requests, so leave room for several.
+const MAX_REQUESTS = 240;
 const hits = new Map<string, number[]>();
 
 export function rateLimited(req: Request): Response | null {
@@ -14,6 +15,7 @@ export function rateLimited(req: Request): Response | null {
   }
   recent.push(now);
   hits.set(ip, recent);
-  if (hits.size > 5000) hits.clear();
+  // Bound memory by dropping the oldest entry, never the whole table.
+  if (hits.size > 5000) hits.delete(hits.keys().next().value as string);
   return null;
 }

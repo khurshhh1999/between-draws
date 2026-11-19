@@ -78,7 +78,7 @@ export function Phone({ patient, moment, memory, thread, view, onView, draft, on
         })}
       </div>
 
-      <div className="screen" ref={scroller} aria-live="polite">
+      <div className="screen" ref={scroller} aria-busy={disabled && live}>
         {view === "memory" ? (
           <div className="memory">
             <p className="muted small">Everything the app has learned about you. Remove anything and it stops shaping what you see.</p>
@@ -134,6 +134,11 @@ export function Phone({ patient, moment, memory, thread, view, onView, draft, on
           </>
         )}
       </div>
+
+      {/* Announce a reply once, when it is complete, instead of token by token. */}
+      <p className="sr-only" role="status">
+        {!disabled && thread.length > 0 && thread[thread.length - 1].role === "assistant" ? thread[thread.length - 1].text : ""}
+      </p>
 
       {view === "chat" && (
         <div className="composer">

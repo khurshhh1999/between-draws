@@ -1,6 +1,5 @@
 "use client";
 
-import NumberFlow from "@number-flow/react";
 import { animate, AnimatePresence, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ComponentProps, PointerEvent as ReactPointerEvent } from "react";
@@ -30,48 +29,10 @@ export type StatusDay = {
   incidents?: StatusIncident[];
 };
 
-const DAY_MS = 86_400_000;
 const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 const TOOLTIP_SPRING = { type: "spring", stiffness: 520, damping: 42, mass: 0.6 } as const;
 
 const parseIsoDate = (iso: string) => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
-export const toIsoDate = (time: number) => new Date(time).toISOString().slice(0, 10);
-
-/** Builds one entry per UTC day from `from` to `to`, inclusive. Days without an entry count as operational. */
-export function fillStatusDays(from: string, to: string, entries: StatusDay[] = []): StatusDay[] {
-  const byDate = new Map(entries.map((day) => [day.date, day]));
-  const days: StatusDay[] = [];
-  for (let time = parseIsoDate(from), end = parseIsoDate(to); time <= end; time += DAY_MS) {
-    const date = toIsoDate(time);
-    days.push(byDate.get(date) ?? { date });
-  }
-  return days;
-}
-
-function subscribeToDayChange(onChange: () => void) {
-  let timer: ReturnType<typeof setTimeout>;
-  const schedule = () => {
-    timer = setTimeout(() => {
-      onChange();
-      schedule();
-    }, DAY_MS - (Date.now() % DAY_MS) + 1_000);
-  };
-  // Background tabs throttle timers, so a returning visitor re-checks the date.
-  const onVisible = () => {
-    if (document.visibilityState === "visible") onChange();
-  };
-  schedule();
-  document.addEventListener("visibilitychange", onVisible);
-  return () => {
-    clearTimeout(timer);
-    document.removeEventListener("visibilitychange", onVisible);
-  };
-}
-
-/** Today's UTC date as an ISO string. It is `null` during server rendering and rolls over at UTC midnight. */
-export function useStatusToday(): string | null {
-  return useSyncExternalStore(subscribeToDayChange, () => toIsoDate(Date.now()), () => null);
-}
 
 const subscribeToNothing = () => () => {};
 function useLocale(locale?: string) {
@@ -384,13 +345,7 @@ export function StatusBars({
               "No data yet"
             ) : (
               <>
-                <NumberFlow
-                  value={Math.floor(uptime * 100) / 10000}
-                  locales={locale}
-                  format={{ style: "percent", maximumFractionDigits: 2 }}
-                  animated={!reduce}
-                  willChange
-                />{" "}
+                {percent(uptime)}{" "}
                 on protocol
               </>
             )}

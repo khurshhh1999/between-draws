@@ -9,7 +9,7 @@ import { chartUpTo, type Memory, type Moment, type Patient } from "@/lib/patient
 import { URGENCY, type Meta } from "@/lib/types";
 
 // Synthetic program start, so each program day lands on a real calendar date.
-const PROGRAM_START = Date.UTC(2026, 4, 23);
+const PROGRAM_START = Date.UTC(2026, 4, 24);
 
 const TONE = { routine: "bg-white text-[var(--ok)]", same_day: "bg-white text-[var(--amber)]", emergency: "bg-[var(--coral)] text-white" } as const;
 
@@ -78,7 +78,7 @@ export function HoodPanel({ patient, moment, memory, enabledCount, offTitles, sy
         </li>
         <li>
           <b>Adherence</b>
-          <StatusBars label="Protocol adherence" days={adherence(patient, moment.day)} maxDays={patient.retestDay + 1} minBarWidth={2} compact className="min-w-0" />
+          <StatusBars label="Protocol adherence" days={adherence(patient, moment.day)} maxDays={patient.retestDay + 1} minBarWidth={1} compact className="min-w-0" />
         </li>
       </ul>
       <details className="prompt">

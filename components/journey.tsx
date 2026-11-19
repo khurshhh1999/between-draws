@@ -78,7 +78,9 @@ export function Journey({ patient, active, live, enabledRules, offRules, tab, on
           controller.signal,
         );
       } catch {
-        if (!controller.signal.aborted) patch((last) => ({ ...last, error: "Connection lost." }));
+        // An aborted first load (unmount, strict-mode remount) is allowed to start again.
+        if (controller.signal.aborted) started.current.delete(m.id);
+        else patch((last) => ({ ...last, error: "Connection lost." }));
       } finally {
         setBusy(false);
       }
@@ -88,7 +90,7 @@ export function Journey({ patient, active, live, enabledRules, offRules, tab, on
 
   const generate = useCallback(
     (m: Moment) => {
-      // Regenerating a moment discards what its previous run saved or escalated.
+      // Regenerating a moment discards what its previous run saved or escalated (deletions stay deleted).
       const fromThisRun = (x: Memory) => x.day === m.day && learned.some((l) => l.id === x.id);
       setLearned((l) => l.filter((x) => x.day !== m.day));
       setHandoffs((h) => h.filter((x) => x.day !== m.day));
@@ -116,7 +118,8 @@ export function Journey({ patient, active, live, enabledRules, offRules, tab, on
     const nav = timeline.current;
     const stop = nav?.children[idx] as HTMLElement | undefined;
     if (!nav || !stop || nav.scrollWidth <= nav.clientWidth) return;
-    nav.scrollTo({ left: stop.offsetLeft - (nav.clientWidth - stop.clientWidth) / 2, behavior: "smooth" });
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    nav.scrollTo({ left: stop.offsetLeft - (nav.clientWidth - stop.clientWidth) / 2, behavior: calm ? "auto" : "smooth" });
   }, [idx, active]);
 
   function send(text: string) {
@@ -139,7 +142,15 @@ export function Journey({ patient, active, live, enabledRules, offRules, tab, on
 
   return (
     <div hidden={!active}>
-      <nav className="timeline" aria-label={`${patient.first}'s journey`} ref={timeline}>
+      <nav
+        className="timeline"
+        aria-label={`${patient.first}'s journey`}
+        ref={timeline}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          el.dataset.end = String(el.scrollLeft + el.clientWidth >= el.scrollWidth - 8);
+        }}
+      >
         {patient.moments.map((m, i) => (
           <button
             key={m.id}

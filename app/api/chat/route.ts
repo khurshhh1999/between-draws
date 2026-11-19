@@ -4,7 +4,7 @@ import { getPatient } from "@/lib/patient";
 import { buildSystem, momentEvent } from "@/lib/prompt";
 import { ndjson, runTurn, SessionState } from "@/lib/claude";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const Body = SessionState.extend({
   momentId: z.string().max(40),

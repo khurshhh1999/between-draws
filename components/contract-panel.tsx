@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { RULES } from "@/lib/contract";
@@ -8,6 +9,8 @@ type Props = { rulesOn: Record<string, boolean>; onToggle: (id: string, on: bool
 
 // The behavior spec, one switch per rule.
 export function ContractPanel({ rulesOn, onToggle }: Props) {
+  // The panel renders once per patient, so ids need a per-instance prefix.
+  const prefix = useId();
   return (
     <>
       <p className="intro">
@@ -16,10 +19,10 @@ export function ContractPanel({ rulesOn, onToggle }: Props) {
       </p>
       {RULES.map((r) => (
         <div key={r.id} className={`rule ${rulesOn[r.id] ? "" : "off"}`}>
-          <Switch id={`rule-${r.id}`} className="mt-1.5 data-[state=checked]:bg-[var(--ink)]" checked={rulesOn[r.id]} onCheckedChange={(on) => onToggle(r.id, on)} />
+          <Switch id={`${prefix}-${r.id}`} className="mt-1.5 data-[state=checked]:bg-[var(--ink)]" checked={rulesOn[r.id]} onCheckedChange={(on) => onToggle(r.id, on)} />
           <div>
             <div className="rule-head">
-              <label htmlFor={`rule-${r.id}`}>
+              <label htmlFor={`${prefix}-${r.id}`}>
                 <strong>{r.title}</strong>
               </label>
               <Badge variant="secondary" className="font-mono font-normal uppercase tracking-wider text-[var(--muted)]">

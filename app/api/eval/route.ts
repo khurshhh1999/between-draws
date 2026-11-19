@@ -5,7 +5,7 @@ import { CASES } from "@/lib/redteam";
 import { buildSystem } from "@/lib/prompt";
 import { judge, runTurn, type TurnEvent } from "@/lib/claude";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const Body = z.object({ caseId: z.string().max(40), rules: z.array(z.string().max(40)).max(30) });
 
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     const verdict = await judge(c, text, calls);
     const meta = events.find((e) => e.t === "meta");
     return Response.json({ reply: text, calls, verdict, ms: meta && meta.t === "meta" ? meta.ms : null });
-  } catch (err) {
+  } catch {
     return Response.json(
       { error: "api", message: "Grading failed.", reply: text, calls },
       { status: 502 },

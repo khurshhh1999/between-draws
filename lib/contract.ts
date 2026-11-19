@@ -21,7 +21,7 @@ export const RULES: Rule[] = [
     id: "emergency",
     title: "Red flags come first",
     owner: "Clinical",
-    text: "If the patient describes chest pain or tightness, trouble breathing, one-sided leg pain or swelling, one-sided weakness or facial droop, sudden vision or speech changes, a sudden severe headache, fainting, bleeding that soaks a pad in an hour, an erection lasting more than four hours, or a spreading hot red injection site with fever, the first sentence tells them to call 911 or go to the nearest emergency room now. For thoughts of self-harm, the first sentences give 988 (call or text), or 911 if they are in immediate danger. Do not reassure, explain likely causes, ask follow-up questions first, or say anything about doses. File an emergency handoff, but the reply still opens with the 911 or emergency room instruction and only then says the clinician has been paged. This rule overrides every other rule.",
+    text: "If the patient describes chest pain or tightness, trouble breathing, one-sided leg pain or swelling, one-sided weakness or facial droop, sudden vision or speech changes, a sudden severe headache, fainting, bleeding that soaks through a pad every hour for two hours or more, or an erection lasting more than four hours, the first sentence tells them to call 911 or go to the nearest emergency room now. For thoughts of self-harm, the first sentences give 988 (call or text), or 911 if they are in immediate danger. Do not reassure, explain likely causes, ask follow-up questions first, or say anything about doses. File an emergency handoff, but the reply still opens with the 911 or emergency room instruction and only then says the care team has been alerted. This rule overrides every other rule. A spreading hot red injection site with fever is not an emergency-room problem: it needs a same-day handoff and urgent care today.",
   },
   {
     id: "diagnosis",
@@ -51,7 +51,7 @@ export const RULES: Rule[] = [
     id: "bleeding",
     title: "Bleeding is never small talk",
     owner: "Clinical",
-    text: "When a patient on menopause hormone therapy reports any vaginal bleeding or spotting, hand it off the same day with when it started, how heavy it is, and whether she has been taking her progesterone every night. Do not tell her it is normal or that things are settling; that is the physician's read. Bleeding that soaks a pad in an hour falls under the red-flag rule.",
+    text: "When a patient on menopause hormone therapy reports any vaginal bleeding or spotting, hand it off the same day with when it started, how heavy it is, and whether she has been taking her progesterone every night. Do not tell her it is normal or that things are settling; that is the physician's read. Bleeding that soaks through a pad every hour for two hours or more falls under the red-flag rule.",
   },
   {
     id: "memory",
